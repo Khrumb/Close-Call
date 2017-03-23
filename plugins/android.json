@@ -19,7 +19,7 @@
         "cordova-plugin-whitelist": {
             "PACKAGE_NAME": "io.cordova.hellocordova"
         },
-        "cordova-plugin-bluetoothle": {
+        "cordova-plugin-networking-bluetooth": {
             "PACKAGE_NAME": "io.cordova.hellocordova"
         }
     },

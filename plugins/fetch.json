@@ -31,10 +31,10 @@
         "is_top_level": true,
         "variables": {}
     },
-    "cordova-plugin-bluetoothle": {
+    "cordova-plugin-networking-bluetooth": {
         "source": {
             "type": "registry",
-            "id": "cordova-plugin-bluetoothle@4.3.1"
+            "id": "cordova-plugin-networking-bluetooth"
         },
         "is_top_level": true,
         "variables": {}

@@ -3,14 +3,22 @@ var first_touch;
 
 var version = "0.0.1";
 
-var device_list = [];
 
 var db;
-var bleEnabled=false;
+var bt = false; 
+var device_list = [];
+
+var devInfo;
+var serverInfo = { uuid:"6ccefb4c-4e37-4c79-934a-793dc2533de2", socketID: ""};
+var connections =[];
 
 var test_mode = true;
+var bt_test_mode = false;
 
-var puid;
+var discoTimeout;
+
+var debug_num = 0;
+
 
 /*
 	Required to bootstrap to the cordova engine.
@@ -31,9 +39,9 @@ var app = {
 
  	//this is where everything starts
   	onDeviceReady: function() {
-		uiControl.setDebugger();
-		uiControl.updateDebugger("build", "pre-alpha");
-		uiControl.updateDebugger("version", version);
+		if (test_mode) {
+			uiControl.startDebugger();
+		}
 		dataManager.initialize();		
 		npms.initialize();
 	},
@@ -101,7 +109,7 @@ var dataManager = {
  	},
 
  	errorCB:function(err) {
-    	uiControl.updateDebugger("SQL ERROR", err.message);
+    	uiControl.updateDebugger("SQL ERROR", err.message, 10);
  	}
 
 };
@@ -113,29 +121,39 @@ var dataManager = {
 var uiControl = {
 
 	metrics: [],
-	values: [],
-	callback: [],
+	timeouts:[],
 
-	setDebugger:function() {
-		var htmlinsert = "";
-		var template = "";
-		for(var i = 0;i < uiControl.metrics.length; i++){
-			if(uiControl.metrics[i] == "build" || uiControl.metrics[i] == "version" || uiControl.metrics[i] == "msg"){
-				template = "<div class='dbg_item'>" + uiControl.values[i] + "</div>";
-			} else {
-				template = "<div class='dbg_item'>" +	uiControl.metrics[i] + "|" + uiControl.values[i] + "</div>";
-			}
-			htmlinsert += template;
-		}
-		document.getElementById('debug').innerHTML = htmlinsert;
+	startDebugger:function(){
+		var debug = document.getElementById("debug");
+		debug.appendChild(uiControl.createDebugItem("Pre Alpha - " + version));
 	},
 
-	updateDebugger:function(id, val){
-		if(uiControl.metrics.indexOf(id) <  0){
-			uiControl.metrics.push(id);
+	updateDebugger:function(id, val, timeout){
+		if(uiControl.metrics[id]){
+			element = uiControl.metrics[id];
+			element.innerHTML = "";
+			element.appendChild(uiControl.createDebugItem(id + " | " + val));
+		} else {
+			var debug = document.getElementById("debug");
+			newMetric = uiControl.createDebugItem(id + " | " + val);
+			uiControl.metrics[id] = newMetric;
+			debug.appendChild(newMetric);
 		}
-		uiControl.values[uiControl.metrics.indexOf(id)] = val;
-		uiControl.setDebugger();
+		if(timeout){
+			if(uiControl.timeouts[id]){
+				clearTimeout(uiControl.timeouts[id]);
+			}
+			uiControl.timeouts[id] = setTimeout(function() {
+				uiControl.metrics[id].remove();
+				clearTimeout(uiControl.timeouts[id]);
+			}, timeout*1000);
+		}
+	},
+
+	createDebugItem:function(info){
+		newMetric = document.createElement("DIV");
+		newMetric.appendChild(document.createTextNode(info));
+		return newMetric;
 	},
 
 	createDeviceElement:function(device) {
@@ -144,13 +162,19 @@ var uiControl = {
 		device_container.className = "device";
 		device_container.onclick = function() {
 			var ocDevice = device;
-			messenger.initialize(ocDevice);
-			document.getElementById("connections").style.display = "none";
-			document.getElementById("messenger").style.display = "block";
+			if(ocDevice.last_connected){
+				messenger.initialize(ocDevice);
+				document.getElementById("connections").style.display = "none";
+				document.getElementById("messenger").style.display = "block";	
+			} else {
+				bt.connect(ocDevice.address, serverInfo.uuid, function(socketID) {
+					connection[ocDevice.address] = socketID;
+				} ,npms.errorHandler)
+			}
 		};
 
 		devstatus = document.createElement("DIV");
-		if(device.rssi){
+		if(device.uuids){
 			devstatus.className = "device_status online";
 		} else {
 			devstatus.className = "device_status";
@@ -213,7 +237,7 @@ var uiControl = {
 
     toBeImplemented:function(arg) {
       alert('This feature is comming soon.');
-      uiControl.updateDebugger("args", arg)
+      uiControl.updateDebugger("args", arg, 5)
     }
 };
 
@@ -224,185 +248,92 @@ var uiControl = {
 var npms = {
 
 	initialize:function() {
-		var params  = {"request": true, 
-				   "statusReciever": true,
-				   "restoreKey": "Close Call"};		
-		bluetoothle.initialize(npms.isConnected, params);
-		bluetoothle.initializePeripheral(npms.isAdvertizing,npms.errorHandler, params);
-		npms.startServices();	
-	},
-
-	startServices:function() {
-		params = {service: "7282",
-				  characteristics: [{ uuid: "6902520a-2dcc-4e2b-898c-af1c48f75a08",
-				   					  permissions: {readEncryptionRequired: true,
-				       								writeEncryptionRequired: true },
-								      properties : {read: true, 
-								      				writeWithoutResponse: false, 
-								      				write: true, 
-								      				notify: true, 
-								      				indicate: true, 
-								      				authenticatedSignedWrites: true, 
-								      				notifyEncryptionRequired: true, 
-								      				indicateEncryptionRequired: true}}]};
-		bluetoothle.addService(npms.statusReporter, npms.errorHandler, params);	
-
-		params = {service:"7282",
-  				  name:"Close Call Messaging Service"};
-		bluetoothle.startAdvertising(npms.statusReporter, npms.errorHandler, params);
-		
-		params = {service: "7283",
-				  characteristics: [{ uuid: "c506ad3a-50fa-46a8-81ca-508d3391ba95",
-				   					  permissions: {readEncryptionRequired: true,
-				       								writeEncryptionRequired: true },
-								      properties : {read: true, 
-								      				writeWithoutResponse: true, 
-								      				write: true, 
-								      				notify: true, 
-								      				indicate: true, 
-								      				authenticatedSignedWrites: true, 
-								      				notifyEncryptionRequired: true, 
-								      				indicateEncryptionRequired: true}}]};
-		bluetoothle.addService(npms.statusReporter, npms.errorHandler, params);	
-
-		params = {service:"7283",
-  				  name:"Close Call Network Reporting Service"};
-		bluetoothle.startAdvertising(npms.statusReporter, npms.errorHandler, params);	
-	},
-
-	isConnected:function(succuess) {
-		if (succuess["status"]=="enabled") {
-          	bleEnabled=true;
-        	uiControl.updateDebugger("BT", bleEnabled);
-	        params = {"services": ["7282"], 
-	        		  "allowDuplicates": true,
-	        		  "scanMode": bluetoothle.SCAN_MODE_LOW_LATENCY, 
-	        		  "matchMode": bluetoothle.MATCH_MODE_AGGRESSIVE, 
-	        		  "matchNum": bluetoothle.MATCH_NUM_MAX_ADVERTISEMENT, 
-	        		  "callbackType": bluetoothle.CALLBACK_TYPE_ALL_MATCHES
-	        		  };
-	        document.getElementById("loading_spinner").className = "loading_spinner icon";
-	        bluetoothle.startScan(npms.deviceListPopulate, npms.errorHandler, params);
-        } else {
-        	uiControl.updateDebugger("BT", bleEnabled);
+        if(networking.bluetooth){
+	        bt = networking.bluetooth;
+	 	    bt.onAdapterStateChanged.addListener(npms.adapterHandler);
+	 	    bt.getAdapterState(npms.adapterHandler);
+	 	    bt.onDeviceAdded.addListener(npms.deviceListPopulate);
+	 	    npms.setupServices();
+			//npms.refreshList();
         }
+	},
+
+	setupServices:function() {
+		bt.listenUsingRfcomm(serverInfo.uuid, function (serverSocketId) {
+			serverInfo.socketID = serverSocketId;
+       		uiControl.updateDebugger("BT Server", serverInfo.socketID);
+		}, npms.errorHandler);
+	},
+
+
+	adapterHandler:function(adapterInfo) {
+        devInfo = adapterInfo;
+        uiControl.updateDebugger("Device BTE", devInfo.enabled);
+       	uiControl.updateDebugger("Device Name", devInfo.name);
+       	uiControl.updateDebugger("Device Discovering", devInfo.discovering);
+       	uiControl.updateDebugger("Device Discoverable", devInfo.discoverable);
+		if(devInfo.enabled){
+		} else {
+			bt.requestEnable(npms.getDevices, function () {
+ 	   			 bt.getAdapterState(npms.adapterHandler);
+			});
+		}
     },
 
-    isAdvertizing:function(succuess) {
-    	if(succuess){
-	        uiControl.updateDebugger("Serving", scanResult.status);
-    		switch(succuess.status){
-	    		case "enabled":
-	    			break;
-
-	    		case "disabled":
-	    			break;
-
-	    		case "readRequested":
-	    			break;
-
-	    		case "writeRequested":
-	    			break;
-
-	    		case "subscribed":
-
-	    			break;
-	    		case "unsubscribed":
-	    			break;
-
-	    		case "notificationSent":
-	    			break;
-
-	    		case "connected":
-	    			break;
-
-	    		case "disconnected":
-	    			break;
-
-	    		case "mtuChanged":
-	    			break;
-	    	}
-    	}
-  
-    },
-
-	deviceListPopulate:function(scanResult) {
+	deviceListPopulate:function(device) {
 		var online_list = document.getElementById("online_deviceList");
-		
-		if(scanResult){
-        	uiControl.updateDebugger("scanResult", scanResult.status);
-			switch(scanResult.status){
-				case "scanResult":
-					if (device_list[scanResult.address] != undefined) {
-						device = device_list[scanResult.address];
-						device.element.parentNode.removeChild(device.element);
-						device.name = scanResult.name;
-						device["rssi"] = scanResult.rssi;
-						online_list.appendChild(uiControl.createDeviceElement(device));
-					} else {
-						online_list.appendChild(uiControl.createDeviceElement(scanResult));
-					}
-					break;
-
-				case "scanStarted":
-		       		bt_scan = setTimeout(function() {
-		        		bluetoothle.stopScan(npms.deviceListPopulate, npms.errorHandler);
-		        		clearTimeout(bt_scan);
-	    			}, 15000);
-					break;
-
-				case "scanStopped":
-					document.getElementById("loading_spinner").className = "icon";
-					break;
-
-				default:
-					if(test_mode){
-	       				document.getElementById("loading_spinner").className = "icon";
-						devices = test.getDeviceList();
-						devices.forEach(function(device){
-							if (device_list[device.address] != undefined) {
-								devicet = device_list[device.address];
-								devicet.element.parentNode.removeChild(devicet.element);
-								
-								devicet.name = device.name;
-								devicet["rssi"] = device.rssi;
-								online_list.appendChild(uiControl.createDeviceElement(devicet));
-							} else {
-								online_list.appendChild(uiControl.createDeviceElement(device));
-							}
-	        			});
-	        		}	
-					break;
-			}	
+		if (device_list[device.address] != undefined) {
+			saved_device = device_list[device.address];
+			saved_device.element.parentNode.removeChild(saved_device.element);
+			saved_device.name = device.name;
+			saved_device[uuids] = device.uuids;
+			online_list.appendChild(uiControl.createDeviceElement(saved_device));
+		} else {
+			device_list[device.address] = device;
+			online_list.appendChild(uiControl.createDeviceElement(device));
+		}
+		if(bt_test_mode){
+	       document.getElementById("loading_spinner").className = "icon";
+			devices = test.getDeviceList();
+			devices.forEach(function(device){
+				if (device_list[device.address] != undefined) {
+					devicet = device_list[device.address];
+					devicet.element.parentNode.removeChild(devicet.element);			
+					devicet.name = device.name;
+					devicet[uuids] = device.uuids;
+					online_list.appendChild(uiControl.createDeviceElement(devicet));
+				} else {
+					online_list.appendChild(uiControl.createDeviceElement(device));
+				}
+	        });
 		}
 	},
-
-	statusReporter:function(succuess) {
-		if(succuess){
-			uiControl.updateDebugger("Service Status", succuess.status);
-		}	
-	},
-
 
 	refreshList:function() {
-	    document.getElementById("loading_spinner").className = "loading_spinner icon";
-		if(bleEnabled){
-        	bluetoothle.startScan(npms.deviceListPopulate, npms.errorHandler, params);
-		}
-	    bt_scan = setTimeout(function() {
-	        bluetoothle.stopScan(npms.deviceListPopulate, npms.errorHandler);
-	        
-	        if(test_mode){
-	        	var scanResult = {"status": "test Result"};
-	        	npms.deviceListPopulate(scanResult);	
-	        }
-	        
-	        clearTimeout(bt_scan);
-	    }, 15000);
+	    if(discoTimeout == null){
+			bt.startDiscovery(function () {
+	       		document.getElementById("loading_spinner").className = "loading_spinner icon";
+	       		bt.requestDiscoverable(function () {}, function () {}); 
+	   		 	discoTimeout = setTimeout(function () {
+	        		bt.stopDiscovery();
+		       		document.getElementById("loading_spinner").className = "icon";
+		       		clearTimeout(discoTimeout);
+		       		discoTimeout = null;
+	  			}, 15000);
+			});
+	   		 	
+	    } else {
+			bt.stopDiscovery();
+		    document.getElementById("loading_spinner").className = "icon";
+		    clearTimeout(discoTimeout);
+		    discoTimeout = null;
+	    }
 	},
 
+
+
 	errorHandler:function(msg) {
-        uiControl.updateDebugger("BLE ERROR", msg.message);
+        uiControl.updateDebugger("BT ERROR", msg);
 	}
 };
 
