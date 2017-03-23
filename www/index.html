@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="msapplication-tap-highlight" content="no" />
+        <!-- WARNING: for iOS 7, remove the width=device-width and height=device-height attributes. See https://issues.apache.org/jira/browse/CB-4323 -->
+        <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, target-densitydpi=device-dpi" />
+				<link rel="stylesheet" type="text/css" href="css/title.css" />
+        <title>Close Call</title>
+    </head>
+    <body>
+
+		  <div id="debug"></div>
+
+      <div id="connections">
+        <div class="navbar">
+          <div class="header_container">
+            <div class="col side">
+              <img class="icon" src="assets/navbarmenubutton.png">
+            </div>
+            <div class="col middle">
+              <img id="navbar_header" src="assets/title.png">
+            </div>
+            <div class="col side">
+              <img id="loading_spinner" class="icon" src="assets/spinner.png" onclick="npms.refreshList()"> 
+            </div>
+          </div>
+        </div>
+        <div class="device_list">
+          <p class="list_title">Online</p>
+          <div id="online_deviceList">
+          </div>
+          
+          <p class="list_title">Offline</p>
+          <div id="offline_deviceList">
+          </div>  
+
+        </div> 
+      </div>
+
+      <div id="messenger" style="display:none">
+        <div class="navbar">
+          <div class="header_container">
+            <div class="col side">
+             <img class="icon" src="assets/back.png" onclick="messenger.back()">
+            </div>
+            <div class="col middle">
+             <p id="convo_partner">Partner Name</p>
+            </div>
+            <div class="col side">
+            </div>
+          </div>
+        </div>
+
+        <div id="conversation_container">
+          
+        </div>
+
+        <div class="input_container">
+          <div class="col side">
+            <p id="messenger_content_adder">+</p>
+          </div>
+          <div class="col middle">
+            <textarea placeholder="Type a message" rows="1" cols="40" id="messenger_input"></textarea>
+          </div>
+          <div class="col side">
+          </div>
+        </div>
+      </div>
+
+
+
+		  <script type="text/javascript" src="cordova.js"></script>
+      <script type="text/javascript" src="js/index.js"></script>
+      <script type="text/javascript">
+        app.initialize();
+      </script>
+    </body>
+</html>
