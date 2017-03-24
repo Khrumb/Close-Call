@@ -313,7 +313,9 @@ var npms = {
 	    if(discoTimeout == null){
 			bt.startDiscovery(function () {
 	       		document.getElementById("loading_spinner").className = "loading_spinner icon";
-	       		bt.requestDiscoverable(function () {}, function () {}); 
+	       		if(devInfo.discoverable == false){
+	       			bt.requestDiscoverable(function () {}, function () {}); 
+	       		}
 	   		 	discoTimeout = setTimeout(function () {
 	        		bt.stopDiscovery();
 		       		document.getElementById("loading_spinner").className = "icon";
