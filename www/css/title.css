@@ -60,7 +60,7 @@ body {
 
 #debug{
 	position: absolute;
-	bottom:0;
+	bottom:60px;
 	right:0;
 	text-align: right;
 	opacity: 0.5;
@@ -234,8 +234,11 @@ div.middle{
 }
 
 #loading_spinner{
-	width:70%;
-	
+	width:70%;	
+}
+
+#loadingInfo{
+	display: none;
 }
 
 .loading_spinner{

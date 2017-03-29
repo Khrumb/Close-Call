@@ -6,18 +6,19 @@ var version = "0.0.1";
 
 var db;
 var bt = false; 
-var device_list = [];
+var deviceList = [];
 
+//Own Defice info
 var devInfo;
-var serverInfo = { uuid:"6ccefb4c-4e37-4c79-934a-793dc2533de2", socketID: ""};
+var serverInfo = { uuid:"6ccefb4c-4e37-4c79-934a-793dc2533de2", socketID: null};
 var connections =[];
+var socketToDevice = [];
 
 var test_mode = true;
 var bt_test_mode = false;
 
 var discoTimeout;
 
-var debug_num = 0;
 
 
 /*
@@ -47,6 +48,10 @@ var app = {
 	},
 
 	onBackKeyDown: function() {
+		if(onBackKeyDown.length > 0){
+			uiControl.updateDebugger("cb", onBackKeyDown[onBackKeyDown.length-1]);
+			onBackKeyDown[onBackKeyDown.length]();
+		}
 	},
 
 	onPause:function() {
@@ -74,32 +79,45 @@ var dataManager = {
     	dataManager.loadDeviceList();
   	},
 
+  	//loads all devices we have in database
   	loadDeviceList:function() {
   		db.transaction(function(tx) {
-			tx.executeSql('SELECT * FROM device', [], function(tx, results) {
+			tx.executeSql('SELECT * FROM device ORDER BY last_connected DESC', [], function(tx, results) {
 				var offline_list = document.getElementById("offline_deviceList");
 				for (var i = 0; i < results.rows.length; i++) {
 					device = results.rows.item(i);
 					device["element"] = uiControl.createDeviceElement(device);
         			offline_list.appendChild(device["element"]);
-        			device_list[device.address] = device;
+        			deviceList[device.address] = device;
 				}
 			}, dataManager.errorCB);
 		}, dataManager.errorCB);
   	},
 
+  	//takes the device object passed and adds it or updates its database entry
+  	updateDevice:function(device) {
+  		db.transaction(function(tx) {
+  			if(device.uid){
+				tx.executeSql('Update device SET last_connected = ?, name = ? WHERE uid = ?', [Date.now(), device.name, device.uid]);
+  			} else {
+				tx.executeSql('INSERT INTO device(uid, address, last_connected, name) VALUES ( ?, ?, ?, ?)', [dataManager.generateID() , device.address, Date.now(), device.name]);
+  			}
+		}, dataManager.errorCB);
+  	},
+
+  	//loads messages from db, based on device MAC address
   	loadMessages:function(device) {
   		db.transaction(function(tx){
-			tx.executeSql('SELECT * FROM messages where sender = "'+ device.uid +'" or receiver = "'+ device.uid + '" ORDER BY timestamp ASC', [], function(tx, results) {
-				var message_data = [];
+			tx.executeSql('SELECT * FROM messages where sender = ? or receiver = ? ORDER BY timestamp ASC', [device.uid, device.uid], function(tx, results) {
 				for (var i = 0; i < results.rows.length; i++) {
-					message_data[i] = results.rows.item(i);				
+					message = results.rows.item(i);	
+					messenger.addMessage(message);		
 				}		
-				messenger.messagesPopulate(message_data);
 			}, dataManager.errorCB);
 		}, dataManager.errorCB);  	
  	},
 
+ 	//generates a random 10 character long base64 ide
   	generateID:function(){
   		var id = "";
     	var charSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -123,11 +141,13 @@ var uiControl = {
 	metrics: [],
 	timeouts:[],
 
+	//initalizes debugger and places the version number
 	startDebugger:function(){
 		var debug = document.getElementById("debug");
 		debug.appendChild(uiControl.createDebugItem("Pre Alpha - " + version));
 	},
 
+	//updates the debug elements so values can be seen during runtime
 	updateDebugger:function(id, val, timeout){
 		if(uiControl.metrics[id]){
 			element = uiControl.metrics[id];
@@ -150,12 +170,14 @@ var uiControl = {
 		}
 	},
 
+	//Makes a debug  dom element
 	createDebugItem:function(info){
 		newMetric = document.createElement("DIV");
 		newMetric.appendChild(document.createTextNode(info));
 		return newMetric;
 	},
 
+	//creates and returns a dom element for a device
 	createDeviceElement:function(device) {
 		var device_container = document.createElement("DIV");
 		
@@ -166,10 +188,24 @@ var uiControl = {
 				messenger.initialize(ocDevice);
 				document.getElementById("connections").style.display = "none";
 				document.getElementById("messenger").style.display = "block";	
-			} else {
-				bt.connect(ocDevice.address, serverInfo.uuid, function(socketID) {
-					connection[ocDevice.address] = socketID;
-				} ,npms.errorHandler)
+			} else { 
+				if(!ocDevice.paired){
+					//updating UI
+					devStatus = document.getElementById("device_status_"+ocDevice.address);
+	    			devStatus.removeChild(devStatus.firstChild);
+					devStatus.appendChild(document.createTextNode("Paired"));
+					messenger.initialize(ocDevice);
+
+					//sending first connect info
+					message = JSON.stringify(ocDevice);
+					message = new TextEncoder("utf-8").encode(ocDevice);
+					npms.send(ocDevice, message);
+					
+					while (devStatus.firstChild) {
+	    				devStatus.removeChild(devStatus.firstChild);
+					}
+					devStatus.appendChild(document.createTextNode("Pairing..."));
+				}
 			}
 		};
 
@@ -192,22 +228,24 @@ var uiControl = {
 		tempNode = document.createTextNode(device.address);
 		devaddr.appendChild(tempNode);
 		
+		devinfo = document.createElement("P");
+		devinfo.className = "device_info";
+		devinfo.id = "device_status_"+device.address;
+		
+		if (device.last_connected) {
+			var timeinfo = new Date(device.last_connected);
+			tempNode = document.createTextNode("Last Connected " + timeinfo.toLocaleString());
+			devinfo.appendChild(tempNode);		
+		}
 
 		device_container.appendChild(devname);
 		device_container.appendChild(devaddr);
-
-		if(device.last_connected){
-			devinfo = document.createElement("P");
-			devinfo.className = "device_info";
-			var timeinfo = new Date(device.last_connected*1000);
-			tempNode = document.createTextNode("Last Connected " + timeinfo.toLocaleString());
-			devinfo.appendChild(tempNode);
-			device_container.appendChild(devinfo);
-		}
+		device_container.appendChild(devinfo);
 
 		return device_container;
 	},
 
+	//create and returns a dom element for a message
 	createMessageElement:function(message) {
 		message_container = document.createElement("DIV");
 		message_content = document.createElement("P");
@@ -221,7 +259,7 @@ var uiControl = {
 			message_content.className = "message receiver";	
 			message_timestamp.className = "message_timestamp receiver";
 		}
-		var timeinfo = new Date(message.timestamp*1000);
+		var timeinfo = new Date(message.timestamp);
 
 		tempNode = document.createTextNode(timeinfo.toLocaleString());
 		message_timestamp.appendChild(tempNode);
@@ -237,7 +275,6 @@ var uiControl = {
 
     toBeImplemented:function(arg) {
       alert('This feature is comming soon.');
-      uiControl.updateDebugger("args", arg, 5)
     }
 };
 
@@ -247,29 +284,45 @@ var uiControl = {
 */
 var npms = {
 
+	//gets general information and sets up general info updater
 	initialize:function() {
         if(networking.bluetooth){
 	        bt = networking.bluetooth;
-	 	    bt.onAdapterStateChanged.addListener(npms.adapterHandler);
 	 	    bt.getAdapterState(npms.adapterHandler);
-	 	    bt.onDeviceAdded.addListener(npms.deviceListPopulate);
+	 	    bt.onAdapterStateChanged.addListener(npms.adapterHandler);
 	 	    npms.setupServices();
-			//npms.refreshList();
         }
 	},
 
+	//binds all the listening services for the npms
 	setupServices:function() {
 		bt.listenUsingRfcomm(serverInfo.uuid, function (serverSocketId) {
 			serverInfo.socketID = serverSocketId;
-       		uiControl.updateDebugger("BT Server", serverInfo.socketID);
 		}, npms.errorHandler);
+	 	bt.onDeviceAdded.addListener(npms.deviceListPopulate);
+		bt.onAccept.addListener(npms.connectionEventHandler);
+		bt.onReceive.addListener(npms.messageHandler);
+		bt.onReceiveError.addListener(npms.serviceErrorHandler);
 	},
 
+	//handles all bluetooth server connections
+	//TODO
+	connectionEventHandler:function(acceptInfo) {
+		uiControl.updateDebugger("ACIo", Object.keys(acceptInfo));	
+	},
 
+	//handles all disconnect events and errors the server encounters
+	//TODO
+	serviceErrorHandler:function(errorInfo) {
+		//uiControl.updateDebugger("Server Info", Object.keys(errorInfo));	
+		uiControl.updateDebugger("Server Info", errorInfo.errorMessage);	
+	},
+
+	//handles the device information updates
 	adapterHandler:function(adapterInfo) {
         devInfo = adapterInfo;
         uiControl.updateDebugger("Device BTE", devInfo.enabled);
-       	uiControl.updateDebugger("Device Name", devInfo.name);
+       	//uiControl.updateDebugger("Device Name", devInfo.name);
        	uiControl.updateDebugger("Device Discovering", devInfo.discovering);
        	uiControl.updateDebugger("Device Discoverable", devInfo.discoverable);
 		if(devInfo.enabled){
@@ -280,24 +333,74 @@ var npms = {
 		}
     },
 
+    /*
+	Handles message recieved events
+	Current Status: Error reading information
+	*/
+	messageHandler:function(messageInfo) {
+		uiControl.updateDebugger("MeIo", Object.keys(messageInfo));
+		//messageData = dataManager.ab2str(messageInfo.data);
+		try{
+			uiControl.updateDebugger("messageParsed", JSON.stringify(messageInfo));
+			new TextDecoder('utf-8').decode(messageInfo.data)
+		} catch (e){
+			uiControl.updateDebugger("WTF ERROR", e);
+		}
+
+		uiControl.updateDebugger("MeIo", Object.keys(messageInfo));
+	},
+
+	/*
+	Sends messages to nearby servers
+	Current Status: sending information
+	*/
+    send:function(device, message) {
+		bt.close(serverInfo.socketID);
+		serverInfo.socketID = null;
+
+		//connects to the other device
+		bt.connect(device.address, serverInfo.uuid, function(socketID) {
+			//send then close and restart the listening service
+			message = new TextEncoder("utf-8").encode(message);
+	    	bt.send(socketID, message, function(bytes_sent) {
+	        	uiControl.updateDebugger("Message Sent", bytes_sent);
+	        	bt.close(socketID);
+
+	        	//restart listening service
+	        	bt.listenUsingRfcomm(serverInfo.uuid, function (serverSocketId) {
+					serverInfo.socketID = serverSocketId;
+				}, npms.errorHandler);
+			}, npms.errorHandler);
+
+			//updating/adding the device we connected to the internal db
+			dataManager.updateDevice(device);
+		} ,npms.errorHandler);
+    },
+
+    /*
+	Handles device discovery
+		Gets passed a device and adds it to the UI
+	*/
 	deviceListPopulate:function(device) {
 		var online_list = document.getElementById("online_deviceList");
-		if (device_list[device.address] != undefined) {
-			saved_device = device_list[device.address];
-			saved_device.element.parentNode.removeChild(saved_device.element);
-			saved_device.name = device.name;
-			saved_device[uuids] = device.uuids;
-			online_list.appendChild(uiControl.createDeviceElement(saved_device));
-		} else {
-			device_list[device.address] = device;
-			online_list.appendChild(uiControl.createDeviceElement(device));
+		if(device.name != undefined){
+			if (deviceList[device.address] != undefined) {
+				saved_device = deviceList[device.address];
+				saved_device.element.parentNode.removeChild(saved_device.element);
+				saved_device.name = device.name;
+				saved_device[uuids] = device.uuids;
+				online_list.appendChild(uiControl.createDeviceElement(saved_device));
+			} else {
+				deviceList[device.address] = device;
+				online_list.appendChild(uiControl.createDeviceElement(device));
+			}
 		}
 		if(bt_test_mode){
 	       document.getElementById("loading_spinner").className = "icon";
 			devices = test.getDeviceList();
 			devices.forEach(function(device){
-				if (device_list[device.address] != undefined) {
-					devicet = device_list[device.address];
+				if (deviceList[device.address] != undefined) {
+					devicet = deviceList[device.address];
 					devicet.element.parentNode.removeChild(devicet.element);			
 					devicet.name = device.name;
 					devicet[uuids] = device.uuids;
@@ -309,15 +412,23 @@ var npms = {
 		}
 	},
 
+	/*
+	Starts Device discovery
+	Sets a 30 Second discovery timeout
+	Will timeout after no more devices are detected anyway
+	Also will request to make the current device discoverable
+	*/
 	refreshList:function() {
 	    if(discoTimeout == null){
 			bt.startDiscovery(function () {
 	       		document.getElementById("loading_spinner").className = "loading_spinner icon";
+	       		document.getElementById("loadingInfo").style.display = "block";
 	       		if(devInfo.discoverable == false){
 	       			bt.requestDiscoverable(function () {}, function () {}); 
 	       		}
 	   		 	discoTimeout = setTimeout(function () {
 	        		bt.stopDiscovery();
+	       			document.getElementById("loadingInfo").style.display = "none";
 		       		document.getElementById("loading_spinner").className = "icon";
 		       		clearTimeout(discoTimeout);
 		       		discoTimeout = null;
@@ -326,13 +437,12 @@ var npms = {
 	   		 	
 	    } else {
 			bt.stopDiscovery();
+	       	document.getElementById("loadingInfo").style.display = "none";
 		    document.getElementById("loading_spinner").className = "icon";
 		    clearTimeout(discoTimeout);
 		    discoTimeout = null;
 	    }
 	},
-
-
 
 	errorHandler:function(msg) {
         uiControl.updateDebugger("BT ERROR", msg);
@@ -346,20 +456,32 @@ var npms = {
 */
 var messenger = {
 
+	device: null,
+
 	initialize:function(device) {
 		var header = document.getElementById("convo_partner");
 		header.innerHTML = "";
 		header.appendChild(document.createTextNode(device.name));
 		dataManager.loadMessages(device);	
+		messenger.device = device;
 	},
 
-	//loads all messages in a steralized manor
-	messagesPopulate:function(messages) {
+	//Places a message uiElement in the container, at the bottom of the conversation
+	addMessage:function(message) {
 		var container = document.getElementById("conversation_container");
-		messages.forEach(function(message){
-			container.appendChild(uiControl.createMessageElement(message));			
-        });
+		container.appendChild(uiControl.createMessageElement(message));			
         container.scrollTop = container.scrollHeight;
+	},
+
+	/*
+	Gets input in the text area, wraps it in a message class and jsons it for sending.	
+	*/
+	processMessage:function() {
+		userInput = document.getElementById("messenger_input").value;
+		document.getElementById("messenger_input").value = "";
+		message = {"mid": dataManager.generateID(), "sender": devInfo.address, "reciever": null, "timestamp": Date.now(), "content": userInput};
+		message = JSON.stringify(message);
+		npms.send(messenger.device, message);
 	},
 
 	back:function() {
@@ -370,6 +492,7 @@ var messenger = {
 		while (messages.firstChild) {
     		messages.removeChild(messages.firstChild);
 		}
+		messanger.device = null;
 	}
 };
 
@@ -434,8 +557,8 @@ var test = {
 	},
 
 	generateTimeStamp:function() {
-		var basetime = 1489659947;
-		return basetime + Math.floor(Math.random() * 500000);
+		var basetime = 1489659947000;
+		return basetime + Math.floor(Math.random() * 500000000);
 	},
 
 	generateFakeMac:function() {

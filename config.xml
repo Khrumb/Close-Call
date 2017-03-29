@@ -2,7 +2,7 @@
 <widget id="io.cordova.hellocordova" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
     <name>Close Call</name>
     <description>
-        A Bluetooth messaging App
+        Don't want to talk to others? Shareing your ideas, images, memes? Without wifi? Message your ideas with others, all of those around you. Airplaine Mode and turn on bluetooth, that's all you need. Descrete, untracable messaging within an area as close as within a shout.
     </description>
     <author email="jrgregg@mix.wvu.edu" href="http://cordova.io">
         Close Call Team:

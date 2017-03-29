@@ -28,11 +28,11 @@
           </div>
         </div>
         <div class="device_list">
-          <p class="list_title">Online</p>
+          <p id="loadingInfo" class="list_title">Scanning for Devices...</p>
           <div id="online_deviceList">
           </div>
           
-          <p class="list_title">Offline</p>
+          <p class="list_title">Past Conversations</p>
           <div id="offline_deviceList">
           </div>  
 
@@ -65,6 +65,7 @@
             <textarea placeholder="Type a message" rows="1" cols="40" id="messenger_input"></textarea>
           </div>
           <div class="col side">
+             <img id="messenger_send_button" class="icon" src="assets/send.png" onclick="messenger.processMessage()">
           </div>
         </div>
       </div>
