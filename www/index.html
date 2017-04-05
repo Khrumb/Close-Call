@@ -17,7 +17,7 @@
         <div class="navbar">
           <div class="header_container">
             <div class="col side">
-              <img class="icon" src="assets/navbarmenubutton.png">
+              <img class="icon" src="assets/navbarmenubutton.png" onclick="settingsHandler.loadAppSettings()">
             </div>
             <div class="col middle">
               <img id="navbar_header" src="assets/title.png">
@@ -29,8 +29,11 @@
         </div>
         <div class="device_list">
           <p id="loadingInfo" class="list_title">Scanning for Devices...</p>
-          <div id="online_deviceList">
+          <div id="paired_deviceList">
           </div>
+          <div id="unpaired_deviceList">
+          </div>
+
           
           <p class="list_title">Past Conversations</p>
           <div id="offline_deviceList">
@@ -46,9 +49,11 @@
              <img class="icon" src="assets/back.png" onclick="messenger.back()">
             </div>
             <div class="col middle">
-             <p id="convo_partner">Partner Name</p>
+             <p id="convo_partner" class="page_title">Partner Name</p>
             </div>
             <div class="col side">
+              <img class="icon" src="assets/navbarmenubutton.png" onclick="settingsHandler.loadDeviceSettings()">
+
             </div>
           </div>
         </div>
@@ -70,6 +75,73 @@
         </div>
       </div>
 
+      <div id="app_settings" style="display:none">
+        <div class="navbar">
+          <div class="header_container">
+            <div class="col side">
+             <img class="icon" src="assets/back.png" onclick="settingsHandler.submitAppSettings()">
+            </div>
+            <div class="col middle">
+             <p class="page_title">App Settings</p>
+            </div>
+            <div class="col side">
+            </div>
+          </div>
+        </div>
+
+          <div class="setting">
+            <label class="switch">
+              <input id="setting_onLoadDiscovery" type="checkbox">
+              <div class="slider round"></div>
+            </label>
+            <p class="setting_name">On Load Discovery</p>
+            <p class="setting_description">When the app loads it will automatically start scanning for local devices.</p>
+          </div>
+
+          <div class="setting">
+            <label class="switch">
+              <input id="setting_makeDiscoverable" type="checkbox">
+              <div class="slider round"></div>
+            </label>
+            <p class="setting_name">Ask to Make Discoverable</p>
+            <p class="setting_description">When scanning for devices, the app will ask to make your own device discoverable so others can find you.</p>
+          </div>
+          <div class="setting" onclick="dataManager.clearAllData()">
+            <p class="alert">Clear All Data</p>
+          </div>
+      </div>
+
+
+      <div id="device_settings" style="display:none">
+        <div class="navbar">
+          <div class="header_container">
+            <div class="col side">
+             <img class="icon" src="assets/back.png" onclick="settingsHandler.submitDeviceSettings()">
+            </div>
+            <div class="col middle">
+             <p class="page_title">Partner Settings</p>
+            </div>
+            <div class="col side">
+            </div>
+          </div>
+        </div>
+        <div class="setting">
+          <label class="switch">
+            <input id="setting_mute" type="checkbox">
+            <div class="slider round"></div>
+          </label>
+          <p class="setting_name">Mute</p>
+          <p class="setting_description">Push notification when you recieve a message from this user.</p>
+        </div>
+        <div class="setting">
+          <label class="switch">
+            <input id="setting_block" type="checkbox">
+            <div class="slider round"></div>
+          </label>
+          <p class="setting_name">Block</p>
+          <p class="setting_description">Blocks all communication with this user and they will no longer show up in the conversation list. (Blocked user list can be found in App Settings)</p>
+        </div>
+      </div>
 
 
 		  <script type="text/javascript" src="cordova.js"></script>

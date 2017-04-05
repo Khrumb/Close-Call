@@ -41,6 +41,7 @@ import android.util.Log;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Set;
@@ -297,7 +298,8 @@ public class NetworkingBluetooth extends CordovaPlugin {
 			return true;
 		} else if (action.equals("send")) {
 			int socketId = args.getInt(0);
-			byte[] data = args.getArrayBuffer(1);
+			String raw_data = args.getString(1);
+			byte[] data = raw_data.getBytes(Charset.forName("UTF-8"));
 			BluetoothSocket socket = this.mClientSockets.get(socketId);
 			if (socket != null) {
 				try {
@@ -483,7 +485,7 @@ public class NetworkingBluetooth extends CordovaPlugin {
 
 	public void readLoop(int socketId, BluetoothSocket socket) {
 		byte[] readBuffer = new byte[READ_BUFFER_SIZE];
-		byte[] data;
+		byte[] raw_data;
 		ArrayList<PluginResult> multipartMessages;
 		PluginResult pluginResult;
 
@@ -496,13 +498,18 @@ public class NetworkingBluetooth extends CordovaPlugin {
 				if (bytesRead < 0) {
 					throw new IOException("Disconnected");
 				} else if (bytesRead > 0) {
-					data = Arrays.copyOf(readBuffer, bytesRead);
-					multipartMessages = new ArrayList<PluginResult>();
-					multipartMessages.add(new PluginResult(PluginResult.Status.OK, socketId));
-					multipartMessages.add(new PluginResult(PluginResult.Status.OK, data));
-					pluginResult = new PluginResult(PluginResult.Status.OK, multipartMessages);
-					pluginResult.setKeepCallback(true);
-					this.mContextForReceive.sendPluginResult(pluginResult);
+					raw_data = Arrays.copyOf(readBuffer, bytesRead);
+					String data = new String(raw_data, "UTF-8");
+					
+					try {
+						JSONObject info = new JSONObject();
+						info.put("socketId", socketId);
+						info.put("data", data);
+						info.put("address", socket.getRemoteDevice().getAddress());
+						pluginResult = new PluginResult(PluginResult.Status.OK, info);
+						pluginResult.setKeepCallback(true);
+						this.mContextForReceive.sendPluginResult(pluginResult);
+					} catch (JSONException ex) {}
 				}
 			}
 		} catch (IOException e) {
