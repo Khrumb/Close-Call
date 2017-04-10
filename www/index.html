@@ -16,14 +16,14 @@
       <div id="connections">
         <div class="navbar">
           <div class="header_container">
-            <div class="col side">
-              <img class="icon" src="assets/navbarmenubutton.png" onclick="settingsHandler.loadAppSettings()">
-            </div>
             <div class="col middle">
               <img id="navbar_header" src="assets/title.png">
             </div>
             <div class="col side">
               <img id="loading_spinner" class="icon" src="assets/spinner.png" onclick="npms.refreshList()"> 
+            </div>
+            <div class="col side">
+              <img class="icon" src="assets/settings.png" onclick="settingsHandler.loadAppSettings()">
             </div>
           </div>
         </div>
@@ -52,7 +52,7 @@
              <p id="convo_partner" class="page_title">Partner Name</p>
             </div>
             <div class="col side">
-              <img class="icon" src="assets/navbarmenubutton.png" onclick="settingsHandler.loadDeviceSettings()">
+              <img class="icon" src="assets/settings.png" onclick="settingsHandler.loadDeviceSettings()">
 
             </div>
           </div>
@@ -63,14 +63,11 @@
         </div>
 
         <div class="input_container">
-          <div class="col side">
-            <p id="messenger_content_adder">+</p>
-          </div>
-          <div class="col middle">
-            <textarea placeholder="Type a message" rows="1" cols="40" id="messenger_input"></textarea>
+          <div class="col wide_middle">
+            <div contenteditable="true" placeholder="Type a message" id="messenger_input"></div>
           </div>
           <div class="col side">
-             <img id="messenger_send_button" class="icon" src="assets/send.png" onclick="messenger.processMessage()">
+             <img id="messenger_send_button" src="assets/send.png" onclick="messenger.processMessage()">
           </div>
         </div>
       </div>
@@ -106,7 +103,7 @@
             <p class="setting_name">Ask to Make Discoverable</p>
             <p class="setting_description">When scanning for devices, the app will ask to make your own device discoverable so others can find you.</p>
           </div>
-          <div class="setting" onclick="dataManager.clearAllData()">
+          <div id="dataClear" class="setting" onclick="dataManager.clearAllData()">
             <p class="alert">Clear All Data</p>
           </div>
       </div>

@@ -108,10 +108,9 @@ channel.onCordovaReady.subscribe(function() {
 		exports.onReceiveError.fire(info);
 	}, null, 'NetworkingBluetooth', 'registerReceiveError', []);
 
-	exec(function (serverSocketId, clientSocketId) {
+	exec(function (serverSocketId, clientInfo) {
 		exports.onAccept.fire({
-			socketId: serverSocketId,
-			clientSocketId: clientSocketId
+			info: serverSocketId,
 		});
 	}, null, 'NetworkingBluetooth', 'registerAccept', []);
 

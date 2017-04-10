@@ -517,6 +517,7 @@ public class NetworkingBluetooth extends CordovaPlugin {
 				JSONObject info = new JSONObject();
 				info.put("socketId", socketId);
 				info.put("errorMessage", e.getMessage());
+				info.put("address", socket.getRemoteDevice().getAddress());
 				pluginResult = new PluginResult(PluginResult.Status.OK, info);
 				pluginResult.setKeepCallback(true);
 				this.mContextForReceiveError.sendPluginResult(pluginResult);
@@ -534,12 +535,14 @@ public class NetworkingBluetooth extends CordovaPlugin {
 	public void acceptLoop(int serverSocketId, BluetoothServerSocket serverSocket) {
 		int clientSocketId;
 		BluetoothSocket clientSocket;
+		String clientAddress = null;
 		ArrayList<PluginResult> multipartMessages;
 		PluginResult pluginResult;
 
 		try {
 			while (true) {
 				clientSocket = serverSocket.accept();
+				clientAddress = clientSocket.getRemoteDevice().getAddress();
 				if (clientSocket == null) {
 					throw new IOException("Disconnected");
 				}
@@ -547,14 +550,19 @@ public class NetworkingBluetooth extends CordovaPlugin {
 				clientSocketId = this.mSocketId.getAndIncrement();
 				this.mClientSockets.put(clientSocketId, clientSocket);
 
-				multipartMessages = new ArrayList<PluginResult>();
-				multipartMessages.add(new PluginResult(PluginResult.Status.OK, serverSocketId));
-				multipartMessages.add(new PluginResult(PluginResult.Status.OK, clientSocketId));
-				pluginResult = new PluginResult(PluginResult.Status.OK, multipartMessages);
-				pluginResult.setKeepCallback(true);
-				this.mContextForAccept.sendPluginResult(pluginResult);
+				try {
+					JSONObject info = new JSONObject();
+					info.put("serverSocketId", serverSocketId);
+					info.put("clientSocketId", clientSocketId);
+					info.put("clientAddress", clientAddress);
+					pluginResult = new PluginResult(PluginResult.Status.OK, info);
+					pluginResult.setKeepCallback(true);
+					this.mContextForAccept.sendPluginResult(pluginResult);
 
-				this.newReadLoopThread(clientSocketId, clientSocket);
+					this.newReadLoopThread(clientSocketId, clientSocket);
+				} catch (JSONException ex) {
+					throw new IOException("Disconnected");
+				}
 			}
 		} catch (IOException e) {
 			try {

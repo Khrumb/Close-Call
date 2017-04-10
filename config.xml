@@ -2,9 +2,9 @@
 <widget id="io.cordova.hellocordova" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
     <name>Close Call</name>
     <description>
-        Don't want to talk to others? Shareing your ideas, images, memes? Without wifi? Message your ideas with others, all of those around you. Airplaine Mode and turn on bluetooth, that's all you need. Descrete, untracable messaging within an area as close as within a shout.
+        Don't want to talk to others? Shareing your ideas, images, and memes? Without wifi? Message your ideas with others, all of those around you. Airplaine Mode and turn on bluetooth, that's all you need. Descrete, untracable messaging within an area as close as within a shout.
     </description>
-    <author email="jrgregg@mix.wvu.edu" href="http://cordova.io">
+    <author email="jrgregg@mix.wvu.edu" href="">
         Close Call Team:
             John Gregg
             Kurtis Prendki
@@ -14,6 +14,7 @@
     <access origin="*" />
     <allow-intent href="mailto:*" />
     <allow-intent href="geo:*" />
+    <icon src="www/assets/icon.png" />
     <platform name="android">
         <allow-intent href="market:*" />
     </platform>

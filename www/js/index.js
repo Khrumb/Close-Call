@@ -12,12 +12,13 @@ var deviceList = [];
 var devInfo = [];
 var serverInfo = { uuid:"6ccefb4c-4e37-4c79-934a-793dc2533de2", socketID: null};
 var connections =[];
-var socketToDevice = [];
 
 var settings = [];
+var currentPage = "connections";
 
-var test_mode = false;
+var test_mode = true;
 var bt_test_mode = false;
+
 
 
 /*
@@ -45,9 +46,21 @@ var app = {
 	},
 
 	onBackKeyDown: function() {
-		if(onBackKeyDown.length > 0){
-			uiControl.updateDebugger("cb", onBackKeyDown[onBackKeyDown.length-1]);
-			onBackKeyDown[onBackKeyDown.length]();
+		switch(currentPage){
+			case "app_settings":
+				settingsHandler.submitAppSettings();
+				break;
+			case "device_settings":
+				settingsHandler.submitDeviceSettings();
+				break;
+			case "messenger":
+				messenger.back();
+				break;
+			case "connections":
+				break;
+			default:
+				uiControl.updateDebugger("Current Page", currentPage);
+				break;
 		}
 	},
 
@@ -83,13 +96,20 @@ var dataManager = {
 	},
 
 	clearAllData:function() {
-		db.transaction(function(tx){
-			uiControl.updateDebugger("DM", "Data Cleared");
-			tx.executeSql('DROP TABLE IF EXISTS device');
-			tx.executeSql('DROP TABLE IF EXISTS messages');
-			tx.executeSql('DROP TABLE IF EXISTS app_settings');
-			dataManager.declareTables(tx);
-    	}, dataManager.errorCB);	
+		navigator.notification.confirm(
+    	'Are you sure you want to clear all user data? This includes all contacts and messages.', // message
+		function(button) {
+		    if(button == 1){
+			    db.transaction(function(tx){
+					uiControl.updateDebugger("DM", "Data Cleared");
+					tx.executeSql('DROP TABLE IF EXISTS device');
+					tx.executeSql('DROP TABLE IF EXISTS messages');
+					deviceList = [];
+					dataManager.declareTables(tx);
+		    	}, dataManager.errorCB);	
+		    }
+		}, 'Clear All Data?', ['Confirm','Cancel']);
+
 	},
 
   	//loads all devices we have in database
@@ -128,11 +148,11 @@ var dataManager = {
   	loadMessages:function(device) {
   		if(device.uid){
 	  		db.transaction(function(tx){
-				tx.executeSql('SELECT * FROM messages where sender = ? or receiver = ? or reciever = ? ORDER BY timestamp ASC', [device.uid, device.uid, device.address], function(tx, results) {
+	  			tx.executeSql('SELECT * FROM messages WHERE (sender = ? and receiver = ?) or (sender = ? and receiver = ?) ORDER BY timestamp ASC', [device.uid, devInfo.uid, devInfo.uid, device.address], function(tx, results) {
 					for (var i = 0; i < results.rows.length; i++) {
 						message = results.rows.item(i);	
 						messenger.addMessage(message);		
-					}		
+					}	
 				}, dataManager.errorCB);
 			}, dataManager.errorCB);  	
   		}
@@ -176,7 +196,7 @@ var dataManager = {
  	},
 
  	errorCB:function(err) {
-    	uiControl.updateDebugger("SQL ERROR", err.message, 10);
+		uiControl.updateDebugger("SQL ERROR", JSON.stringify(err));
  	}
 
 };
@@ -281,6 +301,7 @@ var uiControl = {
 	//create and returns a dom element for a message
 	createMessageElement:function(message) {
 		message_container = document.createElement("DIV");
+		message_container.id = "message_"+message.timestamp;
 		message_content = document.createElement("P");
 		message_timestamp = document.createElement("SPAN");
 		if(message.receiver == devInfo.uid){
@@ -321,18 +342,19 @@ var uiControl = {
 			} else {
 				list = document.getElementById("unpaired_deviceList")
 			}
-
+			//uiControl.updateDebugger("Device", JSON.stringify(device))
 			//if it has already been added it may need to be moved between lists
-			if (deviceList[device.address] != undefined) {
+			if (deviceList[device.address]) {
 				saved_device = deviceList[device.address];
-				saved_device.element.parentNode.removeChild(saved_device.element);
 				saved_device.name = device.name;
-				saved_device[uuids] = device.uuids;
-				list.appendChild(uiControl.createDeviceElement(saved_device));
+				//uiControl.updateDebugger("Inc Device" , JSON.stringify(saved_device));
+				saved_device.element.remove();
+				saved_device.element = uiControl.createDeviceElement(saved_device); 
+				list.appendChild(saved_device.element);
 			} else {
-				device
+				device["element"] = uiControl.createDeviceElement(device);
 				deviceList[device.address] = device;
-				list.appendChild(uiControl.createDeviceElement(device));
+				list.appendChild(device.element);
 			}
 		}
 	},
@@ -381,16 +403,19 @@ var npms = {
 	},
 
 	//handles all bluetooth server connections
-	//TODO
+	//saves the socketId to the device in the deviceList
 	connectionEventHandler:function(acceptInfo) {
-		//uiControl.updateDebugger("ACIo", Object.keys(acceptInfo));	
+		acceptInfo = acceptInfo.info;
+		//uiControl.updateDebugger("ACIo", JSON.stringify(acceptInfo));
+		device = deviceList[acceptInfo.clientAddress];
+		device["socketID"] = clientSocketId;
+
 	},
 
 	//handles all disconnect events and errors the server encounters
-	//TODO
+
 	serviceErrorHandler:function(errorInfo) {
-		//uiControl.updateDebugger("Server Info", Object.keys(errorInfo));	
-		//uiControl.updateDebugger("Server Info", errorInfo.errorMessage);
+		uiControl.updateDebugger("Server Info", JSON.stringify(errorInfo));	
 
 	},
 
@@ -402,9 +427,9 @@ var npms = {
         devInfo.name = adapterInfo.name;
 
 		if(devInfo.enabled){
-	        uiControl.updateDebugger("Device BTE", devInfo.enabled);
-	       	uiControl.updateDebugger("Device Discovering", devInfo.discovering);
-	       	uiControl.updateDebugger("Device Discoverable", devInfo.discoverable);
+	        //uiControl.updateDebugger("Device BTE", devInfo.enabled);
+	       	//uiControl.updateDebugger("Device Discovering", devInfo.discovering);
+	       	//uiControl.updateDebugger("Device Discoverable", devInfo.discoverable);
 		} else {
 			bt.requestEnable(npms.getDevices, function () {
  	   			 bt.getAdapterState(npms.adapterHandler);
@@ -421,7 +446,6 @@ var npms = {
 		messageInfo = messageInfo.data;
 		packet = JSON.parse(messageInfo.data);
 
-		uiControl.updateDebugger("Message recieved", packet.signature);
 		//update device information
 		device = deviceList[messageInfo.address];
 		if(device){
@@ -445,17 +469,21 @@ var npms = {
 	Current Status: sending information
 	*/
     send:function(device, message) {
-
 		//connects to the other device
-		//send then close and restart the listening service
 		packet = {"signature": devInfo.uid, "data":message};
 		sendable = JSON.stringify(packet);
-		bt.connect(device.address, serverInfo.uuid, function(socketID) {
-			bt.send(socketID, sendable, function(bytes_sent) {
+		if(device.socketID){
+			bt.send(device.socketID, sendable, function(bytes_sent) {
 				dataManager.addMessage(message);
-		   		bt.close(socketID);
 			}, npms.errorHandler);
-		}, npms.errorHandler);
+		} else {
+			bt.connect(device.address, serverInfo.uuid, function(socketID) {
+				bt.send(socketID, sendable, function(bytes_sent) {
+					dataManager.addMessage(message);
+					device.socketID = socketID;
+				}, npms.errorHandler);
+			}, npms.errorHandler);
+		}
     },
 
     pair:function(device) {
@@ -464,7 +492,6 @@ var npms = {
 	   		devStatus.removeChild(devStatus.firstChild);
 			devStatus.appendChild(document.createTextNode("Paired"));
 			device.paired = true;
-
 		}, function(error) {
 			devStatus.removeChild(devStatus.firstChild);
 			devStatus.appendChild(document.createTextNode("Pairing Failed"));
@@ -497,8 +524,7 @@ var npms = {
 		       		clearTimeout(npms.discoTimeout);
 		       		npms.discoTimeout = null;
 	  			}, 15000);
-			});
-	   		 	
+			});	 	
 	    } else {
 			bt.stopDiscovery();
 	       	document.getElementById("loadingInfo").style.display = "none";
@@ -509,7 +535,7 @@ var npms = {
 	},
 
 	errorHandler:function(msg) {
-        uiControl.updateDebugger("BT ERROR", msg);
+        uiControl.updateDebugger("BT ERROR", JSON.stringify(msg));
 	}
 };
 
@@ -528,6 +554,8 @@ var messenger = {
 		header.appendChild(document.createTextNode(device.name));
 		document.getElementById("connections").style.display = "none";
 		document.getElementById("messenger").style.display = "block";
+		document.getElementById("messenger").className = "on";
+		currentPage = "messenger";
 
 		//initalizing actual items
 		dataManager.loadMessages(device);	
@@ -546,18 +574,21 @@ var messenger = {
 	Gets input in the text area, wraps it in a message class and jsons it for sending.	
 	*/
 	processMessage:function() {
-		userInput = document.getElementById("messenger_input").value;
-		document.getElementById("messenger_input").value = "";
-		message = {"sender": devInfo.uid, "reciever": messenger.device.address, "content": userInput};
-		npms.send(messenger.device, message);
-		
-		message["timestamp"] = Date.now()
-		messenger.addMessage(message);
+		userInput = document.getElementById("messenger_input").innerText;
+		if(userInput != ""){		
+			document.getElementById("messenger_input").innerHTML = "";
+			message = {"sender": devInfo.uid, "receiver": messenger.device.address, "content": userInput};
+			npms.send(messenger.device, message);
+			message["timestamp"] = Date.now();
+			messenger.addMessage(message);
+		}
 	},
 
 	back:function() {
-		document.getElementById("connections").style.display = "block";
 		document.getElementById("messenger").style.display = "none";
+		document.getElementById("connections").style.display = "block";
+		document.getElementById("connections").className = "on";
+		currentPage = "connections";
 		//remove all messages so the page is ready to be repopulated
 		var messages = document.getElementById("conversation_container");
 		while (messages.firstChild) {
@@ -574,11 +605,16 @@ var settingsHandler = {
  	loadAppSettings:function() {
  		document.getElementById("connections").style.display = "none";
 		document.getElementById("app_settings").style.display = "block";
+		document.getElementById("app_settings").className = "on";
+		currentPage = "app_settings";
 	},
 
 	submitAppSettings:function() {
- 		document.getElementById("connections").style.display = "block";
 		document.getElementById("app_settings").style.display = "none";
+ 		document.getElementById("connections").style.display = "block";
+ 		document.getElementById("connections").className = "on";
+		currentPage = "connections";
+
 		settings.onLoadDiscovery = document.getElementById("setting_onLoadDiscovery").checked;
 		settings.makeDiscoverable = document.getElementById("setting_makeDiscoverable").checked;
 		dataManager.updateAppSettings();
@@ -587,11 +623,16 @@ var settingsHandler = {
 	loadDeviceSettings:function() {
 		document.getElementById("messenger").style.display = "none";
 		document.getElementById("device_settings").style.display = "block";
+		document.getElementById("device_settings").className = "on";
+		currentPage = "device_settings";
 	},
 
 	submitDeviceSettings:function() {
-		document.getElementById("messenger").style.display = "block";
 		document.getElementById("device_settings").style.display = "none";
+		document.getElementById("messenger").style.display = "block";
+		document.getElementById("messenger").className = "on";
+		currentPage = "messenger";
+
 		messenger.device.muted = document.getElementById("setting_mute").checked;
 		messenger.device.blocked = document.getElementById("setting_block").checked;
 		dataManager.updateDeviceSettings(messenger.device);
@@ -619,11 +660,11 @@ var test = {
     	db = window.openDatabase("test_pup", version, "dmgr", 20000);
     	db.transaction(function(tx){
 			puid = dataManager.generateID();
-			var test_convo_uid = [];
+			var test_convo_devices = [];
 
 			//generates random userid's
 			for (var i = 0; i < 7; i++) {
-				test_convo_uid[i] = dataManager.generateID();
+				test_convo_devices[i] = {"uid": dataManager.generateID(), "address": test.generateFakeMac(), "last_connected": test.generateTimeStamp(),"name":("Some Random Person "+i)};
 			}
 
 			var device_table = "device(uid, address, last_connected, name, muted, blocked)";
@@ -641,17 +682,13 @@ var test = {
 
 			//inserting device data
 			//tx.executeSql('INSERT INTO '+ device_table +' VALUES ( ?, ?, ?, ?)', [puid, "self", test.generateTimeStamp(), "John"]);
-			tx.executeSql('INSERT INTO '+ device_table +' VALUES ( ?, ?, ?, ?, ?, ?)', [test_convo_uid[0], "FF:FF:FF:FF:FF:FC", test.generateTimeStamp(), "Some Random Person With A Really Long Name", true, false]);
-			tx.executeSql('INSERT INTO '+ device_table +' VALUES ( ?, ?, ?, ?, ?, ?)', [test_convo_uid[1], "FF:FF:FF:FF:FF:FF", test.generateTimeStamp(), "Some Random Person With A Really Long Name", true, false]);
-			for (var i = 2; i < test_convo_uid.length; i++) {
-				tx.executeSql('INSERT INTO '+ device_table +' VALUES ( ?, ?, ?, ?, ?, ?)', [test_convo_uid[i], test.generateFakeMac(), test.generateTimeStamp(),("Some Random Person "+i), false ,false]);
-			}
 
 			//Test convorsations 100 test messages - each
-			for (var i = 0; i < test_convo_uid.length; i++) {
+			for (var i = 0; i < test_convo_devices.length; i++) {
+				tx.executeSql('INSERT INTO '+ device_table +' VALUES ( ?, ?, ?, ?, ?, ?)', [test_convo_devices[i].uid, test_convo_devices[i].address, test_convo_devices[i].last_connected, test_convo_devices[i].name, false ,false]);
 				for (var ii = 0; ii < 50; ii++) {
-					tx.executeSql('INSERT INTO '+ message_table +' VALUES (?, ?, ?, ?, ?)', [dataManager.generateID(), test_convo_uid[i], puid, test.generateTimeStamp(), test.getRandomNaughtyString()]);
-					tx.executeSql('INSERT INTO '+ message_table +' VALUES (?, ?, ?, ?, ?)', [dataManager.generateID(), puid, test_convo_uid[i], test.generateTimeStamp(), test.getRandomNaughtyString()]);
+					tx.executeSql('INSERT INTO '+ message_table +' VALUES (?, ?, ?, ?, ?)', [dataManager.generateID(), test_convo_devices[i].uid, puid, test.generateTimeStamp(), test.getRandomNaughtyString()]);
+					tx.executeSql('INSERT INTO '+ message_table +' VALUES (?, ?, ?, ?, ?)', [dataManager.generateID(), puid, test_convo_devices[i].address, test.generateTimeStamp(), test.getRandomNaughtyString()]);
 				}
 			}
 			//tx.executeSql('DELETE FROM user WHERE uid = 1');
@@ -679,5 +716,4 @@ var test = {
 		var script_naughty = ["<script>alert(123)</script>", "&lt;script&gt;alert(&#39;123&#39;);&lt;/script&gt;", "<img src=x onerror=alert(123) />", "<svg><script>123<1>alert(123)</script>", "\"><script>alert(123)</script>", "'><script>alert(123)</script>", "><script>alert(123)</script>", "</script><script>alert(123)</script>", "< / script >< script >alert(123)< / script >", " onfocus=JaVaSCript:alert(123) autofocus", "\" onfocus=JaVaSCript:alert(123) autofocus", "' onfocus=JaVaSCript:alert(123) autofocus", "＜script＞alert(123)＜/script＞", "<sc<script>ript>alert(123)</sc</script>ript>", "--><script>alert(123)</script>", "\";alert(123);t=\"", "';alert(123);t='", "JavaSCript:alert(123)", ";alert(123);", "src=JaVaSCript:prompt(132)", "\"><script>alert(123);</script x=\"", "'><script>alert(123);</script x='", "><script>alert(123);</script x=", "\" autofocus onkeyup=\"javascript:alert(123)", "' autofocus onkeyup='javascript:alert(123)", "<script\\x20type=\"text/javascript\">javascript:alert(1);</script>", "<script\\x3Etype=\"text/javascript\">javascript:alert(1);</script>", "<script\\x0Dtype=\"text/javascript\">javascript:alert(1);</script>", "<script\\x09type=\"text/javascript\">javascript:alert(1);</script>", "<script\\x0Ctype=\"text/javascript\">javascript:alert(1);</script>", "<script\\x2Ftype=\"text/javascript\">javascript:alert(1);</script>", "<script\\x0Atype=\"text/javascript\">javascript:alert(1);</script>", "'`\"><\\x3Cscript>javascript:alert(1)</script>", "'`\"><\\x00script>javascript:alert(1)</script>", "ABC<div style=\"x\\x3Aexpression(javascript:alert(1)\">DEF", "ABC<div style=\"x:expression\\x5C(javascript:alert(1)\">DEF", "ABC<div style=\"x:expression\\x00(javascript:alert(1)\">DEF", "ABC<div style=\"x:exp\\x00ression(javascript:alert(1)\">DEF", "ABC<div style=\"x:exp\\x5Cression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\x0Aexpression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\x09expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE3\\x80\\x80expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x84expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xC2\\xA0expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x80expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x8Aexpression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\x0Dexpression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\x0Cexpression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x87expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xEF\\xBB\\xBFexpression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\x20expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x88expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\x00expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x8Bexpression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x86expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x85expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x82expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\x0Bexpression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x81expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x83expression(javascript:alert(1)\">DEF", "ABC<div style=\"x:\\xE2\\x80\\x89expression(javascript:alert(1)\">DEF", "<a href=\"\\x0Bjavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x0Fjavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xC2\\xA0javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x05javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE1\\xA0\\x8Ejavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x18javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x11javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\x88javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\x89javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\x80javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x17javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x03javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x0Ejavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x1Ajavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x00javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x10javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\x82javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x20javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x13javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x09javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\x8Ajavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x14javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x19javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\xAFjavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x1Fjavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\x81javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x1Djavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\x87javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x07javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE1\\x9A\\x80javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\x83javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x04javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x01javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x08javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\x84javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\x86javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE3\\x80\\x80javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x12javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x0Djavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x0Ajavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x0Cjavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x15javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\xA8javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x16javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x02javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x1Bjavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x06javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\xA9javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x80\\x85javascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x1Ejavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\xE2\\x81\\x9Fjavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"\\x1Cjavascript:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"javascript\\x00:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"javascript\\x3A:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"javascript\\x09:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"javascript\\x0D:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "<a href=\"javascript\\x0A:javascript:alert(1)\" id=\"fuzzelement1\">test</a>", "`\"'><img src=xxx:x \\x0Aonerror=javascript:alert(1)>", "`\"'><img src=xxx:x \\x22onerror=javascript:alert(1)>", "`\"'><img src=xxx:x \\x0Bonerror=javascript:alert(1)>", "`\"'><img src=xxx:x \\x0Donerror=javascript:alert(1)>", "`\"'><img src=xxx:x \\x2Fonerror=javascript:alert(1)>", "`\"'><img src=xxx:x \\x09onerror=javascript:alert(1)>", "`\"'><img src=xxx:x \\x0Conerror=javascript:alert(1)>", "`\"'><img src=xxx:x \\x00onerror=javascript:alert(1)>", "`\"'><img src=xxx:x \\x27onerror=javascript:alert(1)>", "`\"'><img src=xxx:x \\x20onerror=javascript:alert(1)>", "\"`'><script>\\x3Bjavascript:alert(1)</script>", "\"`'><script>\\x0Djavascript:alert(1)</script>", "\"`'><script>\\xEF\\xBB\\xBFjavascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x81javascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x84javascript:alert(1)</script>", "\"`'><script>\\xE3\\x80\\x80javascript:alert(1)</script>", "\"`'><script>\\x09javascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x89javascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x85javascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x88javascript:alert(1)</script>", "\"`'><script>\\x00javascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\xA8javascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x8Ajavascript:alert(1)</script>", "\"`'><script>\\xE1\\x9A\\x80javascript:alert(1)</script>", "\"`'><script>\\x0Cjavascript:alert(1)</script>", "\"`'><script>\\x2Bjavascript:alert(1)</script>", "\"`'><script>\\xF0\\x90\\x96\\x9Ajavascript:alert(1)</script>", "\"`'><script>-javascript:alert(1)</script>", "\"`'><script>\\x0Ajavascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\xAFjavascript:alert(1)</script>", "\"`'><script>\\x7Ejavascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x87javascript:alert(1)</script>", "\"`'><script>\\xE2\\x81\\x9Fjavascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\xA9javascript:alert(1)</script>", "\"`'><script>\\xC2\\x85javascript:alert(1)</script>", "\"`'><script>\\xEF\\xBF\\xAEjavascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x83javascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x8Bjavascript:alert(1)</script>", "\"`'><script>\\xEF\\xBF\\xBEjavascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x80javascript:alert(1)</script>", "\"`'><script>\\x21javascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x82javascript:alert(1)</script>", "\"`'><script>\\xE2\\x80\\x86javascript:alert(1)</script>", "\"`'><script>\\xE1\\xA0\\x8Ejavascript:alert(1)</script>", "\"`'><script>\\x0Bjavascript:alert(1)</script>", "\"`'><script>\\x20javascript:alert(1)</script>", "\"`'><script>\\xC2\\xA0javascript:alert(1)</script>", "<img \\x00src=x onerror=\"alert(1)\">", "<img \\x47src=x onerror=\"javascript:alert(1)\">", "<img \\x11src=x onerror=\"javascript:alert(1)\">", "<img \\x12src=x onerror=\"javascript:alert(1)\">", "<img\\x47src=x onerror=\"javascript:alert(1)\">", "<img\\x10src=x onerror=\"javascript:alert(1)\">", "<img\\x13src=x onerror=\"javascript:alert(1)\">", "<img\\x32src=x onerror=\"javascript:alert(1)\">", "<img\\x47src=x onerror=\"javascript:alert(1)\">", "<img\\x11src=x onerror=\"javascript:alert(1)\">", "<img \\x47src=x onerror=\"javascript:alert(1)\">", "<img \\x34src=x onerror=\"javascript:alert(1)\">", "<img \\x39src=x onerror=\"javascript:alert(1)\">", "<img \\x00src=x onerror=\"javascript:alert(1)\">", "<img src\\x09=x onerror=\"javascript:alert(1)\">", "<img src\\x10=x onerror=\"javascript:alert(1)\">", "<img src\\x13=x onerror=\"javascript:alert(1)\">", "<img src\\x32=x onerror=\"javascript:alert(1)\">", "<img src\\x12=x onerror=\"javascript:alert(1)\">", "<img src\\x11=x onerror=\"javascript:alert(1)\">", "<img src\\x00=x onerror=\"javascript:alert(1)\">", "<img src\\x47=x onerror=\"javascript:alert(1)\">", "<img src=x\\x09onerror=\"javascript:alert(1)\">", "<img src=x\\x10onerror=\"javascript:alert(1)\">", "<img src=x\\x11onerror=\"javascript:alert(1)\">", "<img src=x\\x12onerror=\"javascript:alert(1)\">", "<img src=x\\x13onerror=\"javascript:alert(1)\">", "<img[a][b][c]src[d]=x[e]onerror=[f]\"alert(1)\">", "<img src=x onerror=\\x09\"javascript:alert(1)\">", "<img src=x onerror=\\x10\"javascript:alert(1)\">", "<img src=x onerror=\\x11\"javascript:alert(1)\">", "<img src=x onerror=\\x12\"javascript:alert(1)\">", "<img src=x onerror=\\x32\"javascript:alert(1)\">", "<img src=x onerror=\\x00\"javascript:alert(1)\">", "<a href=java&#1&#2&#3&#4&#5&#6&#7&#8&#11&#12script:javascript:alert(1)>XXX</a>", "<img src=\"x` `<script>javascript:alert(1)</script>\"` `>", "<img src onerror /\" '\"= alt=javascript:alert(1)//\">", "<title onpropertychange=javascript:alert(1)></title><title title=>", "<a href=http://foo.bar/#x=`y></a><img alt=\"`><img src=x:x onerror=javascript:alert(1)></a>\">", "<!--[if]><script>javascript:alert(1)</script -->", "<!--[if<img src=x onerror=javascript:alert(1)//]> -->", "<script src=\"/\\%(jscript)s\"></script>", "<script src=\"\\\\%(jscript)s\"></script>", "<IMG \"\"\"><SCRIPT>alert(\"XSS\")</SCRIPT>\">", "<IMG SRC=javascript:alert(String.fromCharCode(88,83,83))>", "<IMG SRC=# onmouseover=\"alert('xxs')\">", "<IMG SRC= onmouseover=\"alert('xxs')\">", "<IMG onmouseover=\"alert('xxs')\">", "<IMG SRC=&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#39;&#88;&#83;&#83;&#39;&#41;>", "<IMG SRC=&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058&#0000097&#0000108&#0000101&#0000114&#0000116&#0000040&#0000039&#0000088&#0000083&#0000083&#0000039&#0000041>", "<IMG SRC=&#x6A&#x61&#x76&#x61&#x73&#x63&#x72&#x69&#x70&#x74&#x3A&#x61&#x6C&#x65&#x72&#x74&#x28&#x27&#x58&#x53&#x53&#x27&#x29>", "<IMG SRC=\"jav   ascript:alert('XSS');\">", "<IMG SRC=\"jav&#x09;ascript:alert('XSS');\">", "<IMG SRC=\"jav&#x0A;ascript:alert('XSS');\">", "<IMG SRC=\"jav&#x0D;ascript:alert('XSS');\">", "perl -e 'print \"<IMG SRC=java\\0script:alert(\\\"XSS\\\")>\";' > out", "<IMG SRC=\" &#14;  javascript:alert('XSS');\">", "<SCRIPT/XSS SRC=\"http://ha.ckers.org/xss.js\"></SCRIPT>", "<BODY onload!#$%&()*~+-_.,:;?@[/|\\]^`=alert(\"XSS\")>", "<SCRIPT/SRC=\"http://ha.ckers.org/xss.js\"></SCRIPT>", "<<SCRIPT>alert(\"XSS\");//<</SCRIPT>", "<SCRIPT SRC=http://ha.ckers.org/xss.js?< B >", "<SCRIPT SRC=//ha.ckers.org/.j>", "<IMG SRC=\"javascript:alert('XSS')\"", "<iframe src=http://ha.ckers.org/scriptlet.html <", "\\\";alert('XSS');//", "<u oncopy=alert()> Copy me</u>", "<i onwheel=alert(1)> Scroll over me </i>", "<plaintext>", "http://a/%%30%30", "</textarea><script>alert(123)</script>", "1;DROP TABLE users", "1'; DROP TABLE users-- 1", "' OR 1=1 -- 1", "' OR '1'='1"];
 		return script_naughty[Math.floor(Math.random() * script_naughty.length)];
 	}
-
 };
