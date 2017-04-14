@@ -16,10 +16,7 @@ var connections =[];
 var settings = [];
 var currentPage = "connections";
 
-var test_mode = true;
-var bt_test_mode = false;
-
-
+var test_mode = false;
 
 /*
 	Required to bootstrap to the cordova engine.
@@ -160,7 +157,7 @@ var dataManager = {
 
   	addMessage:function(message) {
   		db.transaction(function(tx) {
-			tx.executeSql('INSERT INTO messages(mid, sender, receiver, timestamp, content) values (?, ?, ?, ?, ?)', [dataManager.generateID(), message.sender, message.receiver, Date.now(), message.content]);
+			tx.executeSql('INSERT INTO messages(mid, sender, receiver, timestamp, content) values (?, ?, ?, ?, ?)', [message.mid, message.sender, message.receiver, message.timestamp, message.content]);
 		}, dataManager.errorCB);	
   	},
 
@@ -260,20 +257,13 @@ var uiControl = {
 			}
 		};
 
-		devstatus = document.createElement("DIV");
-		if(device.uuids){
-			devstatus.className = "device_status online";
-		} else {
-			devstatus.className = "device_status";
-		}
-		device_container.appendChild(devstatus);
 				
+		devstatus = document.createElement("DIV");
 		devname = document.createElement("P");
 		devname.className = "device_name";
 		tempNode = document.createTextNode(device.name);
 		devname.appendChild(tempNode);
 		
-
 		devaddr = document.createElement("P");
 		devaddr.className = "device_address";
 		tempNode = document.createTextNode(device.address);
@@ -282,15 +272,16 @@ var uiControl = {
 		devinfo = document.createElement("P");
 		devinfo.className = "device_info";
 		devinfo.id = "device_status_"+device.address;
-		if(device.paired){
-			tempNode = document.createTextNode("Paired");
-			devinfo.appendChild(tempNode);
+		if(device.paired != undefined){
+			devinfo.appendChild(document.createTextNode("Online"));
+			devstatus.className = "device_status online";
 		} else if (device.last_connected) {
 			var timeinfo = new Date(device.last_connected);
-			tempNode = document.createTextNode("Last Connected " + timeinfo.toLocaleString());
-			devinfo.appendChild(tempNode);		
+			devinfo.appendChild(document.createTextNode("Last Connected " + timeinfo.toLocaleString()));
+			devstatus.className = "device_status";		
 		}
 
+		device_container.appendChild(devstatus);
 		device_container.appendChild(devname);
 		device_container.appendChild(devaddr);
 		device_container.appendChild(devinfo);
@@ -301,8 +292,13 @@ var uiControl = {
 	//create and returns a dom element for a message
 	createMessageElement:function(message) {
 		message_container = document.createElement("DIV");
-		message_container.id = "message_"+message.timestamp;
+		message_container.onclick = function() {
+			if(document.getElementById("message_info_"+message.mid).innerText == "Sending Failed."){
+				npms.resend(message.mid);
+			}
+		};
 		message_content = document.createElement("P");
+		message_content.id = "message__content_"+message.mid;
 		message_timestamp = document.createElement("SPAN");
 		if(message.receiver == devInfo.uid){
 			message_container.className = "message_container left";
@@ -313,9 +309,14 @@ var uiControl = {
 			message_content.className = "message sender right";
 			message_timestamp.className = "message_timestamp right";
 		}
-		var timeinfo = new Date(message.timestamp);
 
-		tempNode = document.createTextNode(timeinfo.toLocaleString());
+		if(message.timestamp){
+			var timeinfo = new Date(message.timestamp);
+			tempNode = document.createTextNode(timeinfo.toLocaleString());
+		} else {
+			message_timestamp.id = "message_info_"+message.mid;
+			tempNode = document.createTextNode("Sending...");
+		}
 		message_timestamp.appendChild(tempNode);
 
 		tempNode = document.createTextNode(message.content);
@@ -342,15 +343,17 @@ var uiControl = {
 			} else {
 				list = document.getElementById("unpaired_deviceList")
 			}
-			//uiControl.updateDebugger("Device", JSON.stringify(device))
 			//if it has already been added it may need to be moved between lists
 			if (deviceList[device.address]) {
 				saved_device = deviceList[device.address];
 				saved_device.name = device.name;
-				//uiControl.updateDebugger("Inc Device" , JSON.stringify(saved_device));
+				saved_device["paired"] = device.paired;
 				saved_device.element.remove();
 				saved_device.element = uiControl.createDeviceElement(saved_device); 
 				list.appendChild(saved_device.element);
+				if(saved_device.paired && saved_device.socketID == undefined){
+					npms.connect(saved_device);
+				}
 			} else {
 				device["element"] = uiControl.createDeviceElement(device);
 				deviceList[device.address] = device;
@@ -402,6 +405,22 @@ var npms = {
 		bt.onReceiveError.addListener(npms.serviceErrorHandler);
 	},
 
+	connect:function(device) {
+		var devStatus = document.getElementById("device_status_" + device.address);
+		devStatus.removeChild(devStatus.firstChild);
+		devStatus.appendChild(document.createTextNode("Connecting..."));
+		bt.connect(device.address, serverInfo.uuid, function(socketID) {
+			device.socketID = socketID;
+			var devStatus = document.getElementById("device_status_" + device.address);
+			devStatus.removeChild(devStatus.firstChild);
+			devStatus.appendChild(document.createTextNode("Connected"));
+		}, function(errorInfo) {
+			var devStatus = document.getElementById("device_status_" + device.address);
+			devStatus.removeChild(devStatus.firstChild);
+			devStatus.appendChild(document.createTextNode("Unable to Connect"));
+		});
+	},
+
 	//handles all bluetooth server connections
 	//saves the socketId to the device in the deviceList
 	connectionEventHandler:function(acceptInfo) {
@@ -409,14 +428,16 @@ var npms = {
 		//uiControl.updateDebugger("ACIo", JSON.stringify(acceptInfo));
 		device = deviceList[acceptInfo.clientAddress];
 		device["socketID"] = clientSocketId;
-
 	},
 
 	//handles all disconnect events and errors the server encounters
 
 	serviceErrorHandler:function(errorInfo) {
-		uiControl.updateDebugger("Server Info", JSON.stringify(errorInfo));	
-
+		device = deviceList[errorInfo.address];
+		device.socketID = undefined;
+		device.paired = undefined;
+		device.last_connected = Date.now();
+		uiControl.deviceListPopulate(device);
 	},
 
 	//handles the device information updates
@@ -427,9 +448,9 @@ var npms = {
         devInfo.name = adapterInfo.name;
 
 		if(devInfo.enabled){
-	        //uiControl.updateDebugger("Device BTE", devInfo.enabled);
-	       	//uiControl.updateDebugger("Device Discovering", devInfo.discovering);
-	       	//uiControl.updateDebugger("Device Discoverable", devInfo.discoverable);
+	        uiControl.updateDebugger("Device BTE", devInfo.enabled);
+	       	uiControl.updateDebugger("Device Discovering", devInfo.discovering);
+	       	uiControl.updateDebugger("Device Discoverable", devInfo.discoverable);
 		} else {
 			bt.requestEnable(npms.getDevices, function () {
  	   			 bt.getAdapterState(npms.adapterHandler);
@@ -472,18 +493,41 @@ var npms = {
 		//connects to the other device
 		packet = {"signature": devInfo.uid, "data":message};
 		sendable = JSON.stringify(packet);
+		var sendConfirm = function(bytes_sent) {
+			//setup timestring
+			message["timestamp"] = Date.now();
+			var timeinfo = new Date(message.timestamp);
+			//updating elements
+			var msgStatus = document.getElementById("message_info_"+message.mid);
+			msgStatus.removeChild(msgStatus.firstChild);
+			msgStatus.appendChild(document.createTextNode(timeinfo.toLocaleString()));
+			//adds message to db
+			dataManager.addMessage(message);
+		};
+		var sendError = function(errorMessage) {
+			//uiControl.updateDebugger("Send Error", JSON.stringify(errorMessage));
+			device.socketID = null;
+			var msgStatus = document.getElementById("message_info_"+message.mid);
+			msgStatus.removeChild(msgStatus.firstChild);
+			msgStatus.appendChild(document.createTextNode("Sending Failed."));
+		};
+
 		if(device.socketID){
-			bt.send(device.socketID, sendable, function(bytes_sent) {
-				dataManager.addMessage(message);
-			}, npms.errorHandler);
+			bt.send(device.socketID, sendable, sendConfirm, sendError);
 		} else {
 			bt.connect(device.address, serverInfo.uuid, function(socketID) {
-				bt.send(socketID, sendable, function(bytes_sent) {
-					dataManager.addMessage(message);
-					device.socketID = socketID;
-				}, npms.errorHandler);
-			}, npms.errorHandler);
+				device.socketID = socketID;
+				bt.send(device.socketID, sendable, sendConfirm, sendError);
+			}, sendError);
 		}
+    },
+
+    resend:function(messageId) {
+    	userInput = document.getElementById("message_content_"+messageId).innerText;
+    	userInput = userInput.replace(document.getElementById("message_info_"+messageId).innerText, "");
+		uiControl.updateDebugger("message", userInput);
+		message = {"mid": messageId,"sender": devInfo.uid, "receiver": messenger.device.address, "content": userInput};
+    	npms.send(messenger.device, message)
     },
 
     pair:function(device) {
@@ -539,7 +583,6 @@ var npms = {
 	}
 };
 
-
 /*
 	Contains all messages having to do with the 
 	functionality of the messaging page
@@ -577,9 +620,8 @@ var messenger = {
 		userInput = document.getElementById("messenger_input").innerText;
 		if(userInput != ""){		
 			document.getElementById("messenger_input").innerHTML = "";
-			message = {"sender": devInfo.uid, "receiver": messenger.device.address, "content": userInput};
+			message = {"mid": dataManager.generateID(),"sender": devInfo.uid, "receiver": messenger.device.address, "content": userInput};
 			npms.send(messenger.device, message);
-			message["timestamp"] = Date.now();
 			messenger.addMessage(message);
 		}
 	},
@@ -599,7 +641,10 @@ var messenger = {
 	}
 };
 
-
+/*
+	Settings menus displaying setup and taredown as well as
+	the code to submit and settings changes.
+*/
 var settingsHandler = {
 
  	loadAppSettings:function() {
