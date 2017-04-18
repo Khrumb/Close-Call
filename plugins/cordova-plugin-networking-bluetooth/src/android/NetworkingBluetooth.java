@@ -555,6 +555,7 @@ public class NetworkingBluetooth extends CordovaPlugin {
 					info.put("serverSocketId", serverSocketId);
 					info.put("clientSocketId", clientSocketId);
 					info.put("clientAddress", clientAddress);
+					info.put("clientName", clientSocket.getRemoteDevice().getName());
 					pluginResult = new PluginResult(PluginResult.Status.OK, info);
 					pluginResult.setKeepCallback(true);
 					this.mContextForAccept.sendPluginResult(pluginResult);

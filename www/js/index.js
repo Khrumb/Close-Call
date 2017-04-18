@@ -273,7 +273,11 @@ var uiControl = {
 		devinfo.className = "device_info";
 		devinfo.id = "device_status_"+device.address;
 		if(device.paired != undefined){
-			devinfo.appendChild(document.createTextNode("Online"));
+			if(device.socketID != undefined){
+				devinfo.appendChild(document.createTextNode("Connected"));
+			} else {
+				devinfo.appendChild(document.createTextNode("Online"));
+			}
 			devstatus.className = "device_status online";
 		} else if (device.last_connected) {
 			var timeinfo = new Date(device.last_connected);
@@ -427,11 +431,18 @@ var npms = {
 		acceptInfo = acceptInfo.info;
 		//uiControl.updateDebugger("ACIo", JSON.stringify(acceptInfo));
 		device = deviceList[acceptInfo.clientAddress];
-		device["socketID"] = clientSocketId;
+		if(device == undefined){
+			device = {"address": acceptInfo.clientAddress};
+			deviceList[acceptInfo.clientAddress] = device;
+		}
+		device["name"] = acceptInfo.clientName;
+		device["paired"] = true;
+		device["socketID"] = acceptInfo.clientSocketId;
+		device["last_connected"] = Date.now();
+		uiControl.deviceListPopulate(device);
 	},
 
 	//handles all disconnect events and errors the server encounters
-
 	serviceErrorHandler:function(errorInfo) {
 		device = deviceList[errorInfo.address];
 		device.socketID = undefined;

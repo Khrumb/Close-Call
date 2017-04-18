@@ -19,10 +19,10 @@
         "cordova-plugin-networking-bluetooth": {
             "PACKAGE_NAME": "io.cordova.hellocordova"
         },
-        "cordova-plugin-whitelist": {
+        "cordova-plugin-statusbar": {
             "PACKAGE_NAME": "io.cordova.hellocordova"
         },
-        "cordova-plugin-statusbar": {
+        "cordova-plugin-whitelist": {
             "PACKAGE_NAME": "io.cordova.hellocordova"
         }
     },
