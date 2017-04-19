@@ -45,8 +45,9 @@ body {
 
 #debug{
 	position: absolute;
-	top:0px;
-	text-align: left;
+	bottom:60px;
+	right:0px;
+	text-align: right;
 	opacity: 0.5;
 	z-index: 9999;
 }
@@ -237,7 +238,7 @@ body {
 .input_container{
 	background-color: white;
 	width: 100%;
-	border-top: 1px solid #e6e6e6;
+	border-top: 1px solid #999999;
 	position: absolute;
 	bottom:0px;
 	min-height:55px;

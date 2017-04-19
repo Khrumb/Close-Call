@@ -246,7 +246,6 @@ var uiControl = {
 	//creates and returns a dom element for a device
 	createDeviceElement:function(device) {
 		var device_container = document.createElement("DIV");
-		
 		device_container.className = "device";
 		device_container.onclick = function() {
 			var ocDevice = device;
@@ -257,7 +256,6 @@ var uiControl = {
 			}
 		};
 
-				
 		devstatus = document.createElement("DIV");
 		devname = document.createElement("P");
 		devname.className = "device_name";
@@ -296,13 +294,9 @@ var uiControl = {
 	//create and returns a dom element for a message
 	createMessageElement:function(message) {
 		message_container = document.createElement("DIV");
-		message_container.onclick = function() {
-			if(document.getElementById("message_info_"+message.mid).innerText == "Sending Failed."){
-				npms.resend(message.mid);
-			}
-		};
+		message_container.id = "message_container_"+message.mid;
 		message_content = document.createElement("P");
-		message_content.id = "message__content_"+message.mid;
+		message_content.id = "message_content_"+message.mid;
 		message_timestamp = document.createElement("SPAN");
 		if(message.receiver == devInfo.uid){
 			message_container.className = "message_container left";
@@ -352,10 +346,11 @@ var uiControl = {
 				saved_device = deviceList[device.address];
 				saved_device.name = device.name;
 				saved_device["paired"] = device.paired;
+				saved_device["socketID"] = device.socketID;
 				saved_device.element.remove();
-				saved_device.element = uiControl.createDeviceElement(saved_device); 
+				saved_device.element = uiControl.createDeviceElement(device); 
 				list.appendChild(saved_device.element);
-				if(saved_device.paired && saved_device.socketID == undefined){
+				if(saved_device.paired && device.socketID == undefined){
 					npms.connect(saved_device);
 				}
 			} else {
@@ -418,6 +413,7 @@ var npms = {
 			var devStatus = document.getElementById("device_status_" + device.address);
 			devStatus.removeChild(devStatus.firstChild);
 			devStatus.appendChild(document.createTextNode("Connected"));
+			npms.sendDeviceConnect(device);
 		}, function(errorInfo) {
 			var devStatus = document.getElementById("device_status_" + device.address);
 			devStatus.removeChild(devStatus.firstChild);
@@ -440,15 +436,23 @@ var npms = {
 		device["socketID"] = acceptInfo.clientSocketId;
 		device["last_connected"] = Date.now();
 		uiControl.deviceListPopulate(device);
+		npms.sendDeviceConnect(device);
 	},
 
 	//handles all disconnect events and errors the server encounters
 	serviceErrorHandler:function(errorInfo) {
-		device = deviceList[errorInfo.address];
-		device.socketID = undefined;
-		device.paired = undefined;
-		device.last_connected = Date.now();
-		uiControl.deviceListPopulate(device);
+		lostSocket = deviceList[errorInfo.address].socketID;
+		Object.keys(deviceList).forEach(function(devAddress) {
+			device = deviceList[devAddress];
+			uiControl.updateDebugger(device.name ,device.socketID);
+			if(device.socketID == lostSocket){
+				device.socketID = undefined;
+				device.paired = undefined;
+				device.last_connected = Date.now();
+				uiControl.deviceListPopulate(device);
+				npms.sendDeviceDisconnect(device);
+			}
+		});
 	},
 
 	//handles the device information updates
@@ -477,22 +481,47 @@ var npms = {
 		//unwrap data
 		messageInfo = messageInfo.data;
 		packet = JSON.parse(messageInfo.data);
+		uiControl.updateDebugger("Rcv Msg Type", packet.type);
 
-		//update device information
-		device = deviceList[messageInfo.address];
+		//update device information, updating uuid
+		var device = deviceList[messageInfo.address];
 		if(device){
 			device["uid"] = packet.signature;
 			dataManager.updateDevice(device);
 		}
-
-		//parse and update message information
-		message = packet.data;
-		message["timestamp"] = Date.now();
-		message.receiver = devInfo.uid;
-		dataManager.addMessage(message);
-		//check if needed to display message
-		if(messenger.device.address == messageInfo.address){
-			messenger.addMessage(message);
+		switch(packet.type){
+			case "msg":
+				//check if the message if intended for self
+				message = packet.data;
+				fwdDevice = deviceList[message.receiver];
+				if(fwdDevice){
+					//forwarding the message along
+					npms.sendMessage(fwdDevice, message);
+				} else {
+					//parse and update message information
+					message["timestamp"] = Date.now();
+					message.receiver = devInfo.uid;
+					dataManager.addMessage(message);
+					//check if needed to display message
+					if(messenger.device.uid == message.sender){
+						messenger.addMessage(message);
+					}
+				}
+				break; 
+			case "connect":
+				incDevice = packet.data;
+				incDevice["paired"] = true;
+				incDevice["socketID"] = device.socketID;
+				uiControl.deviceListPopulate(incDevice);
+				dataManager.updateDevice(incDevice);
+				break;
+			case "disconnect":
+				incDevice = packet.data;
+				incDevice["paired"] = undefined;
+				incDevice["socketID"] = undefined;
+				incDevice["last_connected"] = Date.now();
+				uiControl.deviceListPopulate(incDevice);
+				break;
 		}
 	},
 
@@ -500,9 +529,9 @@ var npms = {
 	Sends messages to nearby servers
 	Current Status: sending information
 	*/
-    send:function(device, message) {
+    sendMessage:function(device, message) {
 		//connects to the other device
-		packet = {"signature": devInfo.uid, "data":message};
+		packet = {"signature": devInfo.uid, "type":"msg", "data":message};
 		sendable = JSON.stringify(packet);
 		var sendConfirm = function(bytes_sent) {
 			//setup timestring
@@ -521,6 +550,9 @@ var npms = {
 			var msgStatus = document.getElementById("message_info_"+message.mid);
 			msgStatus.removeChild(msgStatus.firstChild);
 			msgStatus.appendChild(document.createTextNode("Sending Failed."));
+			document.getElementById("message_container_"+message.mid).onclick = function() {
+				npms.resendMessage(message.mid);
+			};
 		};
 
 		if(device.socketID){
@@ -533,12 +565,57 @@ var npms = {
 		}
     },
 
-    resend:function(messageId) {
+    resendMessage:function(messageId) {
+    	//updating ui elements
+    	var msgStatus = document.getElementById("message_info_"+message.mid);
+		msgStatus.removeChild(msgStatus.firstChild);
+		msgStatus.appendChild(document.createTextNode("Sending..."));
+		document.getElementById("message_container_"+messageId).onclick = "";
+
+		//regetting the text message and reforming the message packet
     	userInput = document.getElementById("message_content_"+messageId).innerText;
     	userInput = userInput.replace(document.getElementById("message_info_"+messageId).innerText, "");
-		uiControl.updateDebugger("message", userInput);
 		message = {"mid": messageId,"sender": devInfo.uid, "receiver": messenger.device.address, "content": userInput};
-    	npms.send(messenger.device, message)
+    	npms.sendMessage(messenger.device, message)
+    },
+
+    sendDeviceConnect:function(device) {
+    	var packet = {"signature": devInfo.uid, "type":"connect"};
+		var connections = [];
+		Object.keys(deviceList).forEach(function(devAddress) {
+			if(deviceList[devAddress].socketID){
+				connections.push(deviceList[devAddress]);
+			}
+		});
+		var sendError = function(errorMessage) {};
+		var sendConfirm = function(bytes_sent) {
+			uiControl.updateDebugger("p_type", packet.type);
+		};
+		connections.forEach(function(connectedDevice){
+			packet["data"] = {"uid": connectedDevice.uid, "address": connectedDevice.address, "name":connectedDevice.name};
+			sendable = JSON.stringify(packet);
+			for (var i = 0; i < connections.length; i++) {
+				if(connections[i].address != connectedDevice.address && connections[i].socketID != connectedDevice.socketID){
+					bt.send(connections[i].socketID, sendable, sendConfirm, sendError);
+				}
+			}
+		});
+    },
+
+    sendDeviceDisconnect:function(device) {
+    	packet = {"signature": devInfo.uid, "type": "disconnect"};
+    	packet["data"] = {"uid": device.uid, "address": device.address, "name":device.name};
+    	sendable = JSON.stringify(packet);
+		var sendConfirm = function(bytes_sent) {
+			uiControl.updateDebugger("p_type", packet.type);
+		};
+		var sendError = function(errorMessage) {};
+		Object.keys(deviceList).forEach(function(devAddress) {
+			var nDevice = deviceList[devAddress];
+			if(devAddress != device.address && nDevice.socketID){
+				bt.send(nDevice.socketID, sendable, sendConfirm, sendError);
+			}
+		});
     },
 
     pair:function(device) {
@@ -632,8 +709,8 @@ var messenger = {
 		if(userInput != ""){		
 			document.getElementById("messenger_input").innerHTML = "";
 			message = {"mid": dataManager.generateID(),"sender": devInfo.uid, "receiver": messenger.device.address, "content": userInput};
-			npms.send(messenger.device, message);
 			messenger.addMessage(message);
+			npms.sendMessage(messenger.device, message);
 		}
 	},
 
