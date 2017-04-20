@@ -34,6 +34,10 @@ exports.disable = function (success, error) {
 	exec(success, error, 'NetworkingBluetooth', 'disable', []);
 };
 
+exports.setDeviceName = function (newName, success, error) {
+	exec(success, error, 'NetworkingBluetooth', 'setDeviceName', [newName]);
+};
+
 exports.getDevice = function (deviceAddress, success, error) {
 	exec(success, error, 'NetworkingBluetooth', 'getDevice', [deviceAddress]);
 };

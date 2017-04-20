@@ -189,6 +189,14 @@ public class NetworkingBluetooth extends CordovaPlugin {
 				callbackContext.success();
 			}
 			return true;
+		} else if (action.equals("setDeviceName")) {
+			String name = args.getString(0);
+			if(this.mBluetoothAdapter.setName(name)){
+				callbackContext.success();
+			} else {
+				callbackContext.error(0);
+			}
+			return true;
 		} else if (action.equals("getDevice")) {
 			String address = args.getString(0);
 			BluetoothDevice device = this.mBluetoothAdapter.getRemoteDevice(address);

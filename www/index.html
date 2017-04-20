@@ -20,7 +20,7 @@
               <img id="navbar_header" src="assets/title.png">
             </div>
             <div class="col side">
-              <img id="loading_spinner" class="icon" src="assets/spinner.png" onclick="npms.refreshList()"> 
+              <img id="loading_spinner" class="icon" src="assets/refresh.png" onclick="npms.refreshList()"> 
             </div>
             <div class="col side">
               <img class="icon" src="assets/settings.png" onclick="settingsHandler.loadAppSettings()">
@@ -85,7 +85,11 @@
             </div>
           </div>
         </div>
-
+          <div class="setting">
+            <br>
+            <input type="name" id="device_name" class="setting_name" placeholder="Adapter Name" onblur="dataManager.setName()"></p>
+            <p class="setting_description close">Tap to change your devices Bluetooth Name.</p>
+          </div>
           <div class="setting">
             <label class="switch">
               <input id="setting_onLoadDiscovery" type="checkbox">
@@ -102,6 +106,10 @@
             </label>
             <p class="setting_name">Ask to Make Discoverable</p>
             <p class="setting_description">When scanning for devices, the app will ask to make your own device discoverable so others can find you.</p>
+          </div>
+          <div class="setting" onclick="npms.makeDeviceDiscoverable()">
+            <p class="setting_name">Make Discoverable</p>
+            <p class="setting_description">Tap to make device discoverable for 5 minuites.</p>
           </div>
           <div id="dataClear" class="setting" onclick="dataManager.clearAllData()">
             <p class="alert">Clear All Data</p>
@@ -128,7 +136,7 @@
             <div class="slider round"></div>
           </label>
           <p class="setting_name">Mute</p>
-          <p class="setting_description">Push notification when you recieve a message from this user.</p>
+          <p class="setting_description">No push notifications when you recieve a message from this user.</p>
         </div>
         <div class="setting">
           <label class="switch">
@@ -136,7 +144,7 @@
             <div class="slider round"></div>
           </label>
           <p class="setting_name">Block</p>
-          <p class="setting_description">Blocks all communication with this user and they will no longer show up in the conversation list. (Blocked user list can be found in App Settings)</p>
+          <p class="setting_description">Blocks all communication with this user and they will no longer show up in the conversation list.<br> (Blocked user list can be found in App Settings)</p>
         </div>
       </div>
 

@@ -45,7 +45,7 @@ body {
 
 #debug{
 	position: absolute;
-	bottom:60px;
+	top:60px;
 	right:0px;
 	text-align: right;
 	opacity: 0.5;
@@ -244,6 +244,15 @@ body {
 	min-height:55px;
 }
 
+input{
+	background-color: transparent;
+	border: 0px solid;
+}
+
+::-webkit-input-placeholder { /* WebKit, Blink, Edge */
+    color:black;
+}
+
 div:focus, textarea:focus, input:focus{
     outline: none;
 }
@@ -312,11 +321,6 @@ div.wide_middle{
 
 }
 
-
-#loading_spinner{
-	width:70%;	
-}
-
 #loadingInfo{
 	display: none;
 	-webkit-animation:slide_in .4s linear;
@@ -324,7 +328,7 @@ div.wide_middle{
 }
 
 .loading_spinner{
-	transform-origin: 50% 57.5% 0;
+	transform-origin: 50% 54.5% 0;
 	-webkit-animation:spin 2s linear infinite;
     -moz-animation:spin 2s linear infinite;
     animation:spin 2s linear infinite;
@@ -378,6 +382,10 @@ div.wide_middle{
 	margin-left: 20px;
 	margin-top: 0px;
 	padding: 0;
+}
+
+.close{
+	margin-top: -15px;
 }
 
 .switch {
@@ -461,6 +469,10 @@ input:checked + .slider:before {
 }
 
 .alert:active{
+  -webkit-transform:scale(0.9,0.9);
+}
+
+.shrinkable:active{
   -webkit-transform:scale(0.9,0.9);
 }
 

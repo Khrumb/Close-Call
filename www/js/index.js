@@ -59,12 +59,6 @@ var app = {
 				uiControl.updateDebugger("Current Page", currentPage);
 				break;
 		}
-	},
-
-	onPause:function() {
-	},
-
-	onResume:function() {
 	}
 };
 
@@ -98,7 +92,11 @@ var dataManager = {
 		function(button) {
 		    if(button == 1){
 			    db.transaction(function(tx){
-					uiControl.updateDebugger("DM", "Data Cleared");
+					//uiControl.updateDebugger("DM", "Data Cleared");
+					document.getElementById("unpaired_deviceList").innerHTML = "";
+					document.getElementById("paired_deviceList").innerHTML = "";
+					document.getElementById("offline_deviceList").innerHTML = "";
+					deviceList = [];
 					tx.executeSql('DROP TABLE IF EXISTS device');
 					tx.executeSql('DROP TABLE IF EXISTS messages');
 					deviceList = [];
@@ -113,9 +111,10 @@ var dataManager = {
   	loadDeviceList:function() {
   		db.transaction(function(tx) {
 			tx.executeSql('SELECT * FROM device ORDER BY last_connected DESC', [], function(tx, results) {
-				var offline_list = document.getElementById("offline_deviceList");
 				for (var i = 0; i < results.rows.length; i++) {
 					device = results.rows.item(i);
+					device.muted = (device.muted == "true");
+					device.blocked = (device.blocked == "true");
 					uiControl.deviceListPopulate(device);
 				}
 			}, dataManager.errorCB);
@@ -166,6 +165,8 @@ var dataManager = {
 			tx.executeSql('SELECT * FROM app_settings', [], function(tx, results) {
 				if(results.rows.length > 0){
 					settings = results.rows.item(0);
+					settings.onLoadDiscovery = (settings.onLoadDiscovery == "true");
+					settings.makeDiscoverable = (settings.makeDiscoverable == "true");
 					devInfo["uid"] = settings.uid;
 				} else {
 					devInfo["uid"] = dataManager.generateID();
@@ -182,6 +183,11 @@ var dataManager = {
 			tx.executeSql('UPDATE app_settings SET onLoadDiscovery = ?, makeDiscoverable = ? WHERE uid = ?', [settings.onLoadDiscovery, settings.makeDiscoverable, settings.uid]);
 		}, dataManager.errorCB);
   	},
+
+  	setName:function() {
+  		var name = document.getElementById("device_name");
+		bt.setDeviceName(name.value, function() {}, function() {});
+	},
 
  	//generates a random 10 character long base64 ide
   	generateID:function(){
@@ -210,7 +216,7 @@ var uiControl = {
 	//initalizes debugger and places the version number
 	startDebugger:function(){
 		var debug = document.getElementById("debug");
-		debug.appendChild(uiControl.createDebugItem("Pre Alpha - " + version));
+		debug.appendChild(uiControl.createDebugItem("Beta Build "));
 	},
 
 	//updates the debug elements so values can be seen during runtime
@@ -371,6 +377,8 @@ var uiControl = {
 		document.getElementById("setting_block").checked = (device.blocked == "true" || device.blocked == true);
 	},
 
+
+
     toBeImplemented:function(arg) {
       alert('This feature is comming soon.');
     }
@@ -413,6 +421,7 @@ var npms = {
 			var devStatus = document.getElementById("device_status_" + device.address);
 			devStatus.removeChild(devStatus.firstChild);
 			devStatus.appendChild(document.createTextNode("Connected"));
+			npms.sendGreeting(device);
 			npms.sendDeviceConnect(device);
 		}, function(errorInfo) {
 			var devStatus = document.getElementById("device_status_" + device.address);
@@ -429,13 +438,13 @@ var npms = {
 		device = deviceList[acceptInfo.clientAddress];
 		if(device == undefined){
 			device = {"address": acceptInfo.clientAddress};
-			deviceList[acceptInfo.clientAddress] = device;
 		}
 		device["name"] = acceptInfo.clientName;
 		device["paired"] = true;
 		device["socketID"] = acceptInfo.clientSocketId;
 		device["last_connected"] = Date.now();
 		uiControl.deviceListPopulate(device);
+		dataManager.updateDevice(device);
 		npms.sendDeviceConnect(device);
 	},
 
@@ -444,7 +453,6 @@ var npms = {
 		lostSocket = deviceList[errorInfo.address].socketID;
 		Object.keys(deviceList).forEach(function(devAddress) {
 			device = deviceList[devAddress];
-			uiControl.updateDebugger(device.name ,device.socketID);
 			if(device.socketID == lostSocket){
 				device.socketID = undefined;
 				device.paired = undefined;
@@ -457,15 +465,27 @@ var npms = {
 
 	//handles the device information updates
 	adapterHandler:function(adapterInfo) {
+        devInfo.enabled = adapterInfo.enabled;
         devInfo.discoverable = adapterInfo.discoverable;
         devInfo.discovering = adapterInfo.discovering;
-        devInfo.enabled = adapterInfo.enabled;
-        devInfo.name = adapterInfo.name;
 
 		if(devInfo.enabled){
-	        uiControl.updateDebugger("Device BTE", devInfo.enabled);
+	        /*uiControl.updateDebugger("Device BTE", devInfo.enabled);
 	       	uiControl.updateDebugger("Device Discovering", devInfo.discovering);
-	       	uiControl.updateDebugger("Device Discoverable", devInfo.discoverable);
+	       	uiControl.updateDebugger("Device Discoverable", devInfo.discoverable);*/
+
+			if(devInfo.name != adapterInfo.name){
+	        	devInfo.name = adapterInfo.name;
+	        	devName = document.getElementById("device_name");
+	        	devName.value = "";
+	        	devName.placeholder = devInfo.name;
+			}
+			if(devInfo.discovering != true && npms.discoTimeout != null){
+				document.getElementById("loadingInfo").style.display = "none";
+		    	document.getElementById("loading_spinner").className = "icon";
+		    	clearTimeout(npms.discoTimeout);
+		    	npms.discoTimeout = null;
+			}	
 		} else {
 			bt.requestEnable(npms.getDevices, function () {
  	   			 bt.getAdapterState(npms.adapterHandler);
@@ -481,7 +501,6 @@ var npms = {
 		//unwrap data
 		messageInfo = messageInfo.data;
 		packet = JSON.parse(messageInfo.data);
-		uiControl.updateDebugger("Rcv Msg Type", packet.type);
 
 		//update device information, updating uuid
 		var device = deviceList[messageInfo.address];
@@ -508,19 +527,21 @@ var npms = {
 					}
 				}
 				break; 
-			case "connect":
+			case "conn":
 				incDevice = packet.data;
 				incDevice["paired"] = true;
 				incDevice["socketID"] = device.socketID;
 				uiControl.deviceListPopulate(incDevice);
 				dataManager.updateDevice(incDevice);
 				break;
-			case "disconnect":
+			case "disc":
 				incDevice = packet.data;
 				incDevice["paired"] = undefined;
 				incDevice["socketID"] = undefined;
 				incDevice["last_connected"] = Date.now();
 				uiControl.deviceListPopulate(incDevice);
+				break;
+			case "greet":
 				break;
 		}
 	},
@@ -580,7 +601,7 @@ var npms = {
     },
 
     sendDeviceConnect:function(device) {
-    	var packet = {"signature": devInfo.uid, "type":"connect"};
+    	var packet = {"signature": devInfo.uid, "type":"conn"};
 		var connections = [];
 		Object.keys(deviceList).forEach(function(devAddress) {
 			if(deviceList[devAddress].socketID){
@@ -589,7 +610,6 @@ var npms = {
 		});
 		var sendError = function(errorMessage) {};
 		var sendConfirm = function(bytes_sent) {
-			uiControl.updateDebugger("p_type", packet.type);
 		};
 		connections.forEach(function(connectedDevice){
 			packet["data"] = {"uid": connectedDevice.uid, "address": connectedDevice.address, "name":connectedDevice.name};
@@ -603,12 +623,10 @@ var npms = {
     },
 
     sendDeviceDisconnect:function(device) {
-    	packet = {"signature": devInfo.uid, "type": "disconnect"};
+    	packet = {"signature": devInfo.uid, "type": "disc"};
     	packet["data"] = {"uid": device.uid, "address": device.address, "name":device.name};
     	sendable = JSON.stringify(packet);
-		var sendConfirm = function(bytes_sent) {
-			uiControl.updateDebugger("p_type", packet.type);
-		};
+		var sendConfirm = function(bytes_sent) {};
 		var sendError = function(errorMessage) {};
 		Object.keys(deviceList).forEach(function(devAddress) {
 			var nDevice = deviceList[devAddress];
@@ -618,12 +636,25 @@ var npms = {
 		});
     },
 
+    sendGreeting:function(device) {
+    	if(device.socketID){		
+	    	packet = {"signature": devInfo.uid, "type": "greet"};
+	    	sendable = JSON.stringify(packet);
+	    	var sendConfirm = function(bytes_sent) {};
+			var sendError = function(errorMessage) {};
+			bt.send(device.socketID, sendable, sendConfirm, sendError);
+    	}
+    },
+
     pair:function(device) {
     	devStatus = document.getElementById("device_status_"+device.address);
 		bt.connect(device.address, serverInfo.uuid, function(socketID) {
 	   		devStatus.removeChild(devStatus.firstChild);
-			devStatus.appendChild(document.createTextNode("Paired"));
+			devStatus.appendChild(document.createTextNode("Connected"));
+			device["socketID"] = socketID;
 			device.paired = true;
+			npms.sendGreeting(device);
+			npms.sendDeviceConnect(device);
 		}, function(error) {
 			devStatus.removeChild(devStatus.firstChild);
 			devStatus.appendChild(document.createTextNode("Pairing Failed"));
@@ -643,6 +674,10 @@ var npms = {
 	discoTimeout:null,
 	refreshList:function() {
 	    if(npms.discoTimeout == null){
+	    	var list = document.getElementById("unpaired_deviceList");
+			while (list.firstChild) {
+	    		list.removeChild(list.firstChild);
+			}
 			bt.startDiscovery(function () {
 	       		document.getElementById("loading_spinner").className = "loading_spinner icon";
 	       		document.getElementById("loadingInfo").style.display = "block";
@@ -664,6 +699,10 @@ var npms = {
 		    clearTimeout(npms.discoTimeout);
 		    npms.discoTimeout = null;
 	    }
+	},
+
+	makeDeviceDiscoverable:function() {
+	    bt.requestDiscoverable(function () {}, function () {}); 
 	},
 
 	errorHandler:function(msg) {
