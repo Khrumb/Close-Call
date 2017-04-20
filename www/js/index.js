@@ -424,7 +424,6 @@ var npms = {
 			devStatus.removeChild(devStatus.firstChild);
 			devStatus.appendChild(document.createTextNode("Connected"));
 			npms.sendGreeting(device);
-			npms.sendDeviceConnect(device);
 		}, function(errorInfo) {
 			var devStatus = document.getElementById("device_status_" + device.address);
 			devStatus.removeChild(devStatus.firstChild);
@@ -657,7 +656,6 @@ var npms = {
 			device["socketID"] = socketID;
 			device.paired = true;
 			npms.sendGreeting(device);
-			npms.sendDeviceConnect(device);
 		}, function(error) {
 			devStatus.removeChild(devStatus.firstChild);
 			devStatus.appendChild(document.createTextNode("Pairing Failed"));
