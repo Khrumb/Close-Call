@@ -85,34 +85,36 @@
             </div>
           </div>
         </div>
-          <div class="setting">
-            <br>
-            <input type="name" id="device_name" class="setting_name" placeholder="Adapter Name" onblur="dataManager.setName()"></p>
-            <p class="setting_description close">Tap to change your devices Bluetooth Name.</p>
-          </div>
-          <div class="setting">
-            <label class="switch">
-              <input id="setting_onLoadDiscovery" type="checkbox">
-              <div class="slider round"></div>
-            </label>
-            <p class="setting_name">On Load Discovery</p>
-            <p class="setting_description">When the app loads it will automatically start scanning for local devices.</p>
-          </div>
+          <div class="settings_container">
+            <div class="setting">
+              <br>
+              <input type="name" id="device_name" class="setting_name" placeholder="Adapter Name" onblur="dataManager.setName()"></p>
+              <p class="setting_description close">Tap to change your device's Bluetooth Adapter name.</p>
+            </div>
+            <div class="setting">
+              <label class="switch">
+                <input id="setting_onLoadDiscovery" type="checkbox">
+                <div class="slider round"></div>
+              </label>
+              <p class="setting_name">On Load Discovery</p>
+              <p class="setting_description">When the app loads it will automatically start scanning for local devices.</p>
+            </div>
 
-          <div class="setting">
-            <label class="switch">
-              <input id="setting_makeDiscoverable" type="checkbox">
-              <div class="slider round"></div>
-            </label>
-            <p class="setting_name">Ask to Make Discoverable</p>
-            <p class="setting_description">When scanning for devices, the app will ask to make your own device discoverable so others can find you.</p>
-          </div>
-          <div class="setting" onclick="npms.makeDeviceDiscoverable()">
-            <p class="setting_name">Make Discoverable</p>
-            <p class="setting_description">Tap to make device discoverable for 5 minuites.</p>
-          </div>
-          <div id="dataClear" class="setting" onclick="dataManager.clearAllData()">
-            <p class="alert">Clear All Data</p>
+            <div class="setting">
+              <label class="switch">
+                <input id="setting_makeDiscoverable" type="checkbox">
+                <div class="slider round"></div>
+              </label>
+              <p class="setting_name">Ask to Make Discoverable</p>
+              <p class="setting_description">When scanning for devices, the app will ask to make your own device discoverable.</p>
+            </div>
+            <div class="setting" onclick="npms.makeDeviceDiscoverable()">
+              <p class="setting_name">Make Discoverable</p>
+              <p class="setting_description">Tap to make device discoverable for 5 minuites.</p>
+            </div>
+            <div id="dataClear" class="setting" onclick="dataManager.clearAllData()">
+              <p class="alert">Clear All Data</p>
+            </div>
           </div>
       </div>
 
@@ -130,21 +132,23 @@
             </div>
           </div>
         </div>
-        <div class="setting">
-          <label class="switch">
-            <input id="setting_mute" type="checkbox">
-            <div class="slider round"></div>
-          </label>
-          <p class="setting_name">Mute</p>
-          <p class="setting_description">No push notifications when you recieve a message from this user.</p>
-        </div>
-        <div class="setting">
-          <label class="switch">
-            <input id="setting_block" type="checkbox">
-            <div class="slider round"></div>
-          </label>
-          <p class="setting_name">Block</p>
-          <p class="setting_description">Blocks all communication with this user and they will no longer show up in the conversation list.<br> (Blocked user list can be found in App Settings)</p>
+        <div class="settings_container">        
+          <div class="setting">
+            <label class="switch">
+              <input id="setting_mute" type="checkbox">
+              <div class="slider round"></div>
+            </label>
+            <p class="setting_name">Mute</p>
+            <p class="setting_description">No push notifications when you recieve a message from this user.</p>
+          </div>
+          <div class="setting">
+            <label class="switch">
+              <input id="setting_block" type="checkbox">
+              <div class="slider round"></div>
+            </label>
+            <p class="setting_name">Block</p>
+            <p class="setting_description">Blocks all communication with this user and they will no longer show up in the conversation list.<br> (Blocked user list can be found in App Settings)</p>
+          </div>
         </div>
       </div>
 

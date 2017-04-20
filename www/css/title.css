@@ -178,7 +178,7 @@ body {
 	width:100%;
 	height:calc(100% - 115px);
 	overflow-y:scroll;
-	overflow-x: hidden
+	overflow-x: hidden;
 }
 
 .message_container{
@@ -250,7 +250,7 @@ input{
 }
 
 ::-webkit-input-placeholder { /* WebKit, Blink, Edge */
-    color:black;
+    color:#666666;
 }
 
 div:focus, textarea:focus, input:focus{
@@ -351,6 +351,15 @@ div.wide_middle{
 
 ================================================*/
 
+.settings_container{
+	position:absolute;
+	top:60px;
+	width:100%;
+	height:calc(100% - 60px);
+	overflow-y: scroll;
+	overflow-x: hidden;
+}
+
 .setting{
 	background-color: white;
 	text-align: left;
@@ -369,7 +378,7 @@ div.wide_middle{
 }
 
 .alert{
-	font-size: 35pt;
+	font-size: 30pt;
 	text-align: center;
 	margin:5px;
 	color:red;
@@ -386,6 +395,8 @@ div.wide_middle{
 
 .close{
 	margin-top: -15px;
+	width:calc(100% - 50px);
+
 }
 
 .switch {

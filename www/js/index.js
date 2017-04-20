@@ -171,7 +171,7 @@ var dataManager = {
 				} else {
 					devInfo["uid"] = dataManager.generateID();
 					tx.executeSql('INSERT INTO app_settings(uid, onLoadDiscovery, makeDiscoverable) VALUES ( ?, ?, ?)', [devInfo.uid, false, true]);
-					settings = {"uid":devInfo.uid,"onLoadDiscovery": false, "makeDiscoverable": true};
+					settings = {"uid":devInfo.uid,"onLoadDiscovery": false, "makeDiscoverable": false};
 				}
 				uiControl.setAppSettings();				
 			}, dataManager.errorCB);
@@ -186,7 +186,9 @@ var dataManager = {
 
   	setName:function() {
   		var name = document.getElementById("device_name");
-		bt.setDeviceName(name.value, function() {}, function() {});
+		bt.setDeviceName(name.value, function() {
+ 	   			 bt.getAdapterState(npms.adapterHandler);
+		}, function() {});
 	},
 
  	//generates a random 10 character long base64 ide
@@ -430,6 +432,37 @@ var npms = {
 		});
 	},
 
+	//handles the device information updates
+	adapterHandler:function(adapterInfo) {
+        devInfo.enabled = adapterInfo.enabled;
+        devInfo.discoverable = adapterInfo.discoverable;
+        devInfo.discovering = adapterInfo.discovering;
+
+		if(devInfo.enabled){
+	        /*uiControl.updateDebugger("Device BTE", devInfo.enabled);
+	       	uiControl.updateDebugger("Device Discovering", devInfo.discovering);
+	       	uiControl.updateDebugger("Device Discoverable", devInfo.discoverable);*/
+
+			if(devInfo.name != adapterInfo.name){
+	        	devInfo.name = adapterInfo.name;
+	        	devName = document.getElementById("device_name");
+	        	devName.value = "";
+	        	devName.placeholder = devInfo.name;
+			}
+			if(devInfo.discovering != true && npms.discoTimeout != null){
+				document.getElementById("loadingInfo").style.display = "none";
+		    	document.getElementById("loading_spinner").className = "icon";
+		    	clearTimeout(npms.discoTimeout);
+		    	npms.discoTimeout = null;
+			}	
+		} else {
+			bt.requestEnable(npms.getDevices, function () {
+ 	   			 bt.getAdapterState(npms.adapterHandler);
+			});
+		}
+    },
+
+
 	//handles all bluetooth server connections
 	//saves the socketId to the device in the deviceList
 	connectionEventHandler:function(acceptInfo) {
@@ -462,37 +495,6 @@ var npms = {
 			}
 		});
 	},
-
-	//handles the device information updates
-	adapterHandler:function(adapterInfo) {
-        devInfo.enabled = adapterInfo.enabled;
-        devInfo.discoverable = adapterInfo.discoverable;
-        devInfo.discovering = adapterInfo.discovering;
-
-		if(devInfo.enabled){
-	        /*uiControl.updateDebugger("Device BTE", devInfo.enabled);
-	       	uiControl.updateDebugger("Device Discovering", devInfo.discovering);
-	       	uiControl.updateDebugger("Device Discoverable", devInfo.discoverable);*/
-
-			if(devInfo.name != adapterInfo.name){
-	        	devInfo.name = adapterInfo.name;
-	        	devName = document.getElementById("device_name");
-	        	devName.value = "";
-	        	devName.placeholder = devInfo.name;
-			}
-			if(devInfo.discovering != true && npms.discoTimeout != null){
-				document.getElementById("loadingInfo").style.display = "none";
-		    	document.getElementById("loading_spinner").className = "icon";
-		    	clearTimeout(npms.discoTimeout);
-		    	npms.discoTimeout = null;
-			}	
-		} else {
-			bt.requestEnable(npms.getDevices, function () {
- 	   			 bt.getAdapterState(npms.adapterHandler);
-			});
-		}
-    },
-
     /*
 	Handles message recieved events
 	Current Status: Error reading information
