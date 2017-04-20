@@ -477,8 +477,7 @@ var npms = {
 		device["socketID"] = acceptInfo.clientSocketId;
 		device["last_connected"] = Date.now();
 		uiControl.deviceListPopulate(device);
-		dataManager.updateDevice(device);
-		npms.sendDeviceConnect(device);
+		npms.sendGreeting(device);
 	},
 
 	//handles all disconnect events and errors the server encounters
@@ -544,6 +543,8 @@ var npms = {
 				uiControl.deviceListPopulate(incDevice);
 				break;
 			case "greet":
+				dataManager.updateDevice(device);
+				npms.sendDeviceConnect(device);
 				break;
 		}
 	},
