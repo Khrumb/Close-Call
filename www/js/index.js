@@ -99,7 +99,6 @@ var dataManager = {
 					deviceList = [];
 					tx.executeSql('DROP TABLE IF EXISTS device');
 					tx.executeSql('DROP TABLE IF EXISTS messages');
-					deviceList = [];
 					dataManager.declareTables(tx);
 		    	}, dataManager.errorCB);	
 		    }
@@ -533,6 +532,7 @@ var npms = {
 				incDevice["socketID"] = device.socketID;
 				uiControl.deviceListPopulate(incDevice);
 				dataManager.updateDevice(incDevice);
+				npms.sendDeviceConnect(incDevice, messageInfo.address);
 				break;
 			case "disc":
 				incDevice = packet.data;
@@ -540,6 +540,7 @@ var npms = {
 				incDevice["socketID"] = undefined;
 				incDevice["last_connected"] = Date.now();
 				uiControl.deviceListPopulate(incDevice);
+				npms.sendDeviceDisonnect(incDevice);
 				break;
 			case "greet":
 				dataManager.updateDevice(device);
@@ -602,11 +603,11 @@ var npms = {
     	npms.sendMessage(messenger.device, message)
     },
 
-    sendDeviceConnect:function(device) {
+    sendDeviceConnect:function(device, exclude) {
     	var packet = {"signature": devInfo.uid, "type":"conn"};
 		var connections = [];
 		Object.keys(deviceList).forEach(function(devAddress) {
-			if(deviceList[devAddress].socketID){
+			if(deviceList[devAddress].socketID && devAddress != exclude){
 				connections.push(deviceList[devAddress]);
 			}
 		});
