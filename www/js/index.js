@@ -500,7 +500,6 @@ var npms = {
 		//unwrap data
 		messageInfo = messageInfo.data;
 		packet = JSON.parse(messageInfo.data);
-		uiControl.updateDebugger("RCV type", packet.type);
 		//update device information, updating uuid
 		var device = deviceList[messageInfo.address];
 		if(device){
