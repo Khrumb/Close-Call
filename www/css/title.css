@@ -52,6 +52,13 @@ body {
 	z-index: 9999;
 }
 
+.dbg_item{
+	width:100%;
+	word-wrap: break-word;
+	white-space: wrap;
+	overflow:hidden;
+}
+
 /*==============================================
 
 			DEVICE LIST  STYLING

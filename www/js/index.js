@@ -500,7 +500,7 @@ var npms = {
 		//unwrap data
 		messageInfo = messageInfo.data;
 		packet = JSON.parse(messageInfo.data);
-
+		uiControl.updateDebugger("RCV type", packet.type);
 		//update device information, updating uuid
 		var device = deviceList[messageInfo.address];
 		if(device){
@@ -535,12 +535,12 @@ var npms = {
 				npms.sendDeviceConnect(incDevice, messageInfo.address);
 				break;
 			case "disc":
-				incDevice = packet.data;
+				incDevice = deviceList[packet.data.address];
 				incDevice["paired"] = undefined;
 				incDevice["socketID"] = undefined;
 				incDevice["last_connected"] = Date.now();
 				uiControl.deviceListPopulate(incDevice);
-				npms.sendDeviceDisonnect(incDevice);
+				npms.sendDeviceDisconnect(incDevice, messageInfo.address);
 				break;
 			case "greet":
 				dataManager.updateDevice(device);
@@ -612,8 +612,7 @@ var npms = {
 			}
 		});
 		var sendError = function(errorMessage) {};
-		var sendConfirm = function(bytes_sent) {
-		};
+		var sendConfirm = function(bytes_sent) {};
 		connections.forEach(function(connectedDevice){
 			packet["data"] = {"uid": connectedDevice.uid, "address": connectedDevice.address, "name":connectedDevice.name};
 			sendable = JSON.stringify(packet);
@@ -625,7 +624,7 @@ var npms = {
 		});
     },
 
-    sendDeviceDisconnect:function(device) {
+    sendDeviceDisconnect:function(device, exclude) {
     	packet = {"signature": devInfo.uid, "type": "disc"};
     	packet["data"] = {"uid": device.uid, "address": device.address, "name":device.name};
     	sendable = JSON.stringify(packet);
@@ -633,7 +632,7 @@ var npms = {
 		var sendError = function(errorMessage) {};
 		Object.keys(deviceList).forEach(function(devAddress) {
 			var nDevice = deviceList[devAddress];
-			if(devAddress != device.address && nDevice.socketID){
+			if(devAddress != device.address && nDevice.socketID && devAddress != exclude){
 				bt.send(nDevice.socketID, sendable, sendConfirm, sendError);
 			}
 		});
